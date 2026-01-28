@@ -32,7 +32,14 @@ serve(async (req) => {
     const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
 
     if (!lovableApiKey) {
-      throw new Error("LOVABLE_API_KEY is not configured");
+      console.error("LOVABLE_API_KEY is not configured");
+      return new Response(
+        JSON.stringify({
+          error: "Configuration Error: LOVABLE_API_KEY is missing in Supabase Edge Functions secrets.",
+          details: "Please add LOVABLE_API_KEY via Supabase Dashboard > Edge Functions > Secrets."
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -61,7 +68,7 @@ serve(async (req) => {
 
     // Build system message with rules and prompt
     let systemMessage = agent.system_prompt || "Você é um assistente útil.";
-    
+
     if (agent.system_rules) {
       systemMessage = `## REGRAS ABSOLUTAS (NUNCA QUEBRE ESTAS REGRAS):\n${agent.system_rules}\n\n## INSTRUÇÕES DO AGENTE:\n${systemMessage}`;
     }

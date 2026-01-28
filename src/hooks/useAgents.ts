@@ -28,9 +28,7 @@ export interface Agent {
 
 export interface AgentFormData {
   name: string;
-  title: string;
   description: string;
-  agent_type: string;
   channel: string;
   system_prompt: string;
   system_rules: string;

@@ -29,12 +29,7 @@ interface AgentFormDialogProps {
   loading?: boolean;
 }
 
-const agentTypes = [
-  { value: "sales", label: "Vendas" },
-  { value: "support", label: "Suporte" },
-  { value: "qualifier", label: "Qualificador" },
-  { value: "custom", label: "Personalizado" },
-];
+
 
 const channels = [
   { value: "whatsapp", label: "WhatsApp" },
@@ -66,9 +61,7 @@ export function AgentFormDialog({
 }: AgentFormDialogProps) {
   const [formData, setFormData] = useState<AgentFormData>({
     name: "",
-    title: "",
     description: "",
-    agent_type: "custom",
     channel: "whatsapp",
     system_prompt: "Você é um assistente útil e profissional.",
     system_rules: "",
@@ -84,9 +77,7 @@ export function AgentFormDialog({
     if (agent) {
       setFormData({
         name: agent.name || "",
-        title: agent.title || "",
         description: agent.description || "",
-        agent_type: agent.agent_type || "custom",
         channel: agent.channel || "whatsapp",
         system_prompt: agent.system_prompt || "",
         system_rules: agent.system_rules || "",
@@ -100,9 +91,7 @@ export function AgentFormDialog({
     } else {
       setFormData({
         name: "",
-        title: "",
         description: "",
-        agent_type: "custom",
         channel: "whatsapp",
         system_prompt: "Você é um assistente útil e profissional.",
         system_rules: "",
@@ -141,7 +130,7 @@ export function AgentFormDialog({
 
             {/* Identidade */}
             <TabsContent value="identity" className="space-y-4 mt-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label htmlFor="name">Nome do Agente *</Label>
                   <Input
@@ -152,17 +141,6 @@ export function AgentFormDialog({
                     }
                     placeholder="Assistente de Vendas"
                     required
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="title">Título</Label>
-                  <Input
-                    id="title"
-                    value={formData.title}
-                    onChange={(e) =>
-                      setFormData({ ...formData, title: e.target.value })
-                    }
-                    placeholder="Especialista em Vendas"
                   />
                 </div>
               </div>
@@ -180,27 +158,7 @@ export function AgentFormDialog({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="agent_type">Tipo de Agente</Label>
-                  <Select
-                    value={formData.agent_type}
-                    onValueChange={(value) =>
-                      setFormData({ ...formData, agent_type: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {agentTypes.map((type) => (
-                        <SelectItem key={type.value} value={type.value}>
-                          {type.label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <Label htmlFor="channel">Canal</Label>
                   <Select

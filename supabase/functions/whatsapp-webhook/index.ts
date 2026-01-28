@@ -208,6 +208,45 @@ serve(async (req) => {
       .single();
 
     if (saveError) console.error("[Webhook] DB Save Error:", saveError);
+    else {
+      // 6.5 Upsert Lead (CRITICAL FEATURE REQUEST)
+      try {
+        const cleanPhone = remoteJid.replace("@s.whatsapp.net", "").replace(/[^0-9]/g, "");
+        const formattedPhone = cleanPhone.length > 10 ? `+${cleanPhone}` : cleanPhone;
+
+        // Check if lead exists
+        const { data: existingLead, error: findLeadError } = await supabase
+          .from("leads")
+          .select("id, name")
+          .eq("user_id", instance.user_id)
+          .eq("phone", formattedPhone) // Assumes phone format consistency
+          .maybeSingle();
+
+        if (findLeadError) {
+          console.error("[Webhook] Error finding lead:", findLeadError);
+        } else if (existingLead) {
+          console.log(`[Webhook] Lead already exists: ${existingLead.name} (${existingLead.id})`);
+          // Optional: Update name if it was generic before and now we have a real name?
+          // For now, doing nothing as requested "ir para aí" implies creation mainly.
+        } else {
+          console.log(`[Webhook] Creating new lead for ${pushName} - ${formattedPhone}`);
+          const { error: createLeadError } = await supabase
+            .from("leads")
+            .insert({
+              user_id: instance.user_id,
+              name: pushName || formattedPhone,
+              phone: formattedPhone,
+              status: "new",
+              source: "whatsapp",
+              notes: "Criado automaticamente via WhatsApp Webhook"
+            });
+
+          if (createLeadError) console.error("[Webhook] Error creating lead:", createLeadError);
+        }
+      } catch (leadError) {
+        console.error("[Webhook] Lead processing error:", leadError);
+      }
+    }
 
     // 7. Lógica do Agente (LangGraph Placeholder / Lovable Proxy)
     const agent = instance.ai_agents;
