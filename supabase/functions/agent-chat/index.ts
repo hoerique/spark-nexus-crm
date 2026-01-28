@@ -27,24 +27,7 @@ serve(async (req) => {
       );
     }
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const lovableApiKey = Deno.env.get("LOVABLE_API_KEY");
-
-    if (!lovableApiKey) {
-      console.error("LOVABLE_API_KEY is not configured");
-      return new Response(
-        JSON.stringify({
-          error: "Configuration Error: LOVABLE_API_KEY is missing in Supabase Edge Functions secrets.",
-          details: "Please add LOVABLE_API_KEY via Supabase Dashboard > Edge Functions > Secrets."
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
-    // Load agent configuration
+    // 3. Load agent configuration
     const { data: agent, error: agentError } = await supabase
       .from("ai_agents")
       .select("*")
@@ -66,9 +49,32 @@ serve(async (req) => {
       );
     }
 
-    // Build system message with rules and prompt
-    let systemMessage = agent.system_prompt || "Você é um assistente útil.";
+    // 4. Load AI Provider Config (API KEY)
+    const { data: aiConfig, error: configError } = await supabase
+      .from("ai_provider_configs")
+      .select("api_key, provider, model")
+      .eq("user_id", agent.user_id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
 
+    if (configError) console.error("Error fetching AI config:", configError);
+
+    // Fallback to Env if needed (optional) BUT preferring DB as requested
+    const apiKey = aiConfig?.api_key;
+
+    if (!apiKey) {
+      return new Response(
+        JSON.stringify({
+          error: "AI Config Missing",
+          details: "No active API Key found in 'ai_provider_configs' table for this user. Please configure it in the database."
+        }),
+        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // Build system message
+    let systemMessage = agent.system_prompt || "Você é um assistente útil.";
     if (agent.system_rules) {
       systemMessage = `## REGRAS ABSOLUTAS (NUNCA QUEBRE ESTAS REGRAS):\n${agent.system_rules}\n\n## INSTRUÇÕES DO AGENTE:\n${systemMessage}`;
     }
@@ -82,15 +88,20 @@ serve(async (req) => {
 
     const startTime = Date.now();
 
-    // Call Lovable AI Gateway
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    // Call LLM Provider (Default: OpenAI)
+    // Supports OpenAI standard. Can be adapted for Gemini if base URL changes.
+    const apiUrl = "https://api.openai.com/v1/chat/completions";
+
+    console.log(`Calling AI Provider for Agent ${agent.name}...`);
+
+    const response = await fetch(apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: agent.model || "google/gemini-3-flash-preview",
+        model: aiConfig?.model || agent.model || "gpt-4o-mini", // Prefer DB config model, then Agent ideal model, then fallback
         messages,
         temperature: agent.temperature || 0.7,
       }),
@@ -99,21 +110,9 @@ serve(async (req) => {
     const executionTime = Date.now() - startTime;
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      if (response.status === 402) {
-        return new Response(
-          JSON.stringify({ error: "Payment required. Please add credits to your workspace." }),
-          { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
       const errorText = await response.text();
-      console.error("AI gateway error:", response.status, errorText);
-      throw new Error(`AI gateway error: ${response.status}`);
+      console.error("AI Provider error:", response.status, errorText);
+      throw new Error(`AI Provider Error (${response.status}): ${errorText}`);
     }
 
     const aiResponse = await response.json();

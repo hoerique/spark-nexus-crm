@@ -248,7 +248,7 @@ serve(async (req) => {
       }
     }
 
-    // 7. Lógica do Agente (LangGraph Placeholder / Lovable Proxy)
+    // 7. Lógica do Agente (AI Provider Direct)
     const agent = instance.ai_agents;
 
     // Verificações de paragem
@@ -262,15 +262,30 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, action: "skipped_media" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    if (!lovableApiKey) {
-      console.error("[Webhook] LOVABLE_API_KEY missing. Cannot reply.");
+    // Buscar API KEY do Banco de Dados
+    const { data: aiConfig, error: configError } = await supabase
+      .from("ai_provider_configs")
+      .select("api_key, provider, model")
+      .eq("user_id", instance.user_id)
+      .eq("is_active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (configError) console.error("[Webhook] Error fetching AI config:", configError);
+    const apiKey = aiConfig?.api_key;
+
+    if (!apiKey) {
+      console.error("[Webhook] Missing AI API Key in 'ai_provider_configs'. Cannot reply.");
+      // Não falhar o webhook completamente, apenas logar erro
+      await supabase.from("webhook_logs").insert({
+        user_id: instance.user_id,
+        instance_id: instance.id,
+        event_type: "error",
+        payload: { error: "Missing API Key", details: "Configure 'ai_provider_configs' table" },
+        processing_status: "failed"
+      });
       return new Response(JSON.stringify({ error: "AI Configuration missing" }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
-
-    // -------------------------------------------------------------
-    // ATENÇÃO: Aqui é onde o LangGraph seria inserido
-    // Atualmente mantendo compatibilidade com Lovable AI Gateway
-    // -------------------------------------------------------------
 
     // Preparar Prompt
     let systemMessage = agent.system_prompt || "Você é um assistente útil.";
@@ -278,17 +293,18 @@ serve(async (req) => {
       systemMessage = `## HARD RULES:\n${agent.system_rules}\n\n## INSTRUCTIONS:\n${systemMessage}`;
     }
 
-    console.log(`[Webhook] Calling AI for agent: ${agent.name}`);
+    console.log(`[Webhook] Calling AI Provider for agent: ${agent.name}`);
+    const apiUrl = "https://api.openai.com/v1/chat/completions";
 
     // Chamada à IA
-    const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+    const aiResponse = await fetch(apiUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${lovableApiKey}`,
+        Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: agent.model || "google/gemini-3-flash-preview",
+        model: aiConfig?.model || agent.model || "gpt-3.5-turbo",
         messages: [
           { role: "system", content: systemMessage },
           { role: "user", content: `[${pushName}]: ${content}` },
