@@ -35,12 +35,12 @@ const Auth = () => {
 
     try {
       // Validate input
-      const validationData = isLogin 
-        ? { email, password } 
+      const validationData = isLogin
+        ? { email, password }
         : { email, password, name };
-      
+
       const result = authSchema.safeParse(validationData);
-      
+
       if (!result.success) {
         const firstError = result.error.errors[0];
         toast.error(firstError.message);
@@ -50,34 +50,46 @@ const Auth = () => {
 
       if (isLogin) {
         const { error } = await signIn(email, password);
-        
+
         if (error) {
           if (error.message.includes("Invalid login credentials")) {
             toast.error("Email ou senha incorretos");
+          } else if (error.status === 429 || error.message.includes("Too Many Requests")) {
+            toast.error("Muitas tentativas. Aguarde alguns instantes.");
           } else {
             toast.error(error.message);
           }
           setLoading(false);
           return;
         }
-        
+
         toast.success("Login realizado com sucesso!");
         navigate("/dashboard");
       } else {
-        const { error } = await signUp(email, password, name);
-        
+        const { data, error } = await signUp(email, password, name);
+
         if (error) {
           if (error.message.includes("User already registered")) {
             toast.error("Este email já está cadastrado");
+          } else if (error.status === 429 || error.message.includes("Too Many Requests")) {
+            toast.error("Muitas tentativas. Aguarde 60 segundos e tente novamente.");
           } else {
             toast.error(error.message);
           }
           setLoading(false);
           return;
         }
-        
-        toast.success("Conta criada com sucesso!");
-        navigate("/dashboard");
+
+        if (data?.session) {
+          toast.success("Conta criada com sucesso!");
+          navigate("/dashboard");
+        } else {
+          toast.success("Conta criada! Verifique seu email para confirmar.");
+          // Don't navigate automatically if email confirmation is required, 
+          // or navigate to a "check email" page if you have one.
+          // For now, staying on page or switching to login view might be better.
+          setIsLogin(true);
+        }
       }
     } catch (error) {
       toast.error("Ocorreu um erro. Tente novamente.");
@@ -160,8 +172,8 @@ const Auth = () => {
             </div>
           </div>
 
-          <Button 
-            type="submit" 
+          <Button
+            type="submit"
             className="w-full h-12 gradient-primary text-primary-foreground font-semibold"
             disabled={loading}
           >
@@ -196,7 +208,7 @@ const Auth = () => {
           </p>
           <div className="flex items-center gap-3">
             <div className="flex -space-x-2">
-              {[1,2,3].map(i => (
+              {[1, 2, 3].map(i => (
                 <div key={i} className="w-10 h-10 rounded-full bg-primary/30 border-2 border-background" />
               ))}
             </div>
