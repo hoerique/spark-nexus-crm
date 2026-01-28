@@ -29,28 +29,27 @@ interface ProviderConfig {
 
 const PROVIDERS = [
   {
-    id: "lovable",
-    name: "Lovable AI",
-    icon: Sparkles,
-    color: "text-purple-400",
-    bgColor: "bg-purple-500/20",
-    description: "IA integrada, sem necessidade de API key",
+    id: "openai",
+    name: "OpenAI",
+    icon: Cpu,
+    color: "text-green-400",
+    bgColor: "bg-green-500/20",
+    description: "GPT-4o, GPT-4 Turbo e mais",
     models: [
-      { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (Rápido)" },
-      { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-      { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro" },
-      { value: "openai/gpt-5-mini", label: "GPT-5 Mini" },
-      { value: "openai/gpt-5", label: "GPT-5" },
+      { value: "gpt-4o", label: "GPT-4o (Mais inteligente)" },
+      { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
+      { value: "gpt-4", label: "GPT-4" },
+      { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo (Mais rápido)" },
     ],
-    requiresKey: false,
+    requiresKey: true,
   },
   {
     id: "anthropic",
-    name: "Anthropic Claude",
+    name: "Anthropic",
     icon: Brain,
     color: "text-orange-400",
     bgColor: "bg-orange-500/20",
-    description: "Claude 3.5 Sonnet, Opus e Haiku",
+    description: "Claude 3.5 Sonnet, 3 Opus e Haiku",
     models: [
       { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
       { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
@@ -64,26 +63,22 @@ const PROVIDERS = [
     icon: Zap,
     color: "text-blue-400",
     bgColor: "bg-blue-500/20",
-    description: "Gemini Pro e Flash direto do Google",
+    description: "Gemini 1.5 Pro e Flash",
     models: [
       { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
       { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
-      { value: "gemini-pro", label: "Gemini Pro" },
     ],
     requiresKey: true,
   },
   {
-    id: "chatgpt",
-    name: "OpenAI ChatGPT",
-    icon: Cpu,
-    color: "text-green-400",
-    bgColor: "bg-green-500/20",
-    description: "GPT-4o, GPT-4 Turbo e mais",
+    id: "lovable",
+    name: "Lovable AI (Legado)",
+    icon: Sparkles,
+    color: "text-purple-400",
+    bgColor: "bg-purple-500/20",
+    description: "Gateway integrado (Descontinuado)",
     models: [
-      { value: "gpt-4o", label: "GPT-4o" },
-      { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
-      { value: "gpt-4", label: "GPT-4" },
-      { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo" },
+      { value: "default", label: "Padrão" }
     ],
     requiresKey: true,
   },
@@ -328,7 +323,7 @@ export function AIProvidersSettings() {
 
   const handleToggle = async (providerId: string, isActive: boolean) => {
     const config = configs.find((c) => c.provider === providerId);
-    
+
     if (config) {
       try {
         const { error } = await supabase
