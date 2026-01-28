@@ -15,6 +15,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -29,20 +31,10 @@ interface AgentFormDialogProps {
   loading?: boolean;
 }
 
-
-
 const channels = [
   { value: "whatsapp", label: "WhatsApp" },
   { value: "chat", label: "Chat Interno" },
   { value: "api", label: "API / Webhook" },
-];
-
-const models = [
-  { value: "google/gemini-3-flash-preview", label: "Gemini 3 Flash (Rápido)" },
-  { value: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
-  { value: "google/gemini-2.5-pro", label: "Gemini 2.5 Pro (Avançado)" },
-  { value: "openai/gpt-5-mini", label: "GPT-5 Mini" },
-  { value: "openai/gpt-5", label: "GPT-5 (Premium)" },
 ];
 
 const objectives = [
@@ -255,34 +247,44 @@ export function AgentFormDialog({
                     setFormData({ ...formData, model: value })
                   }
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione" />
+                  <SelectTrigger className="bg-secondary/50">
+                    <SelectValue placeholder="Selecione o modelo" />
                   </SelectTrigger>
                   <SelectContent>
-                    {models.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
+                    <SelectGroup>
+                      <SelectLabel>OpenAI</SelectLabel>
+                      <SelectItem value="gpt-4o">GPT-4o</SelectItem>
+                      <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
+                      <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Anthropic</SelectLabel>
+                      <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</SelectItem>
+                      <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
+                      <SelectItem value="claude-3-haiku-20240307">Claude 3 Haiku</SelectItem>
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel>Google Gemini</SelectLabel>
+                      <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
+                      <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
+                    </SelectGroup>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div>
-                <Label>Temperatura: {formData.temperature.toFixed(1)}</Label>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Valores mais altos = respostas mais criativas. Valores mais
-                  baixos = respostas mais precisas.
-                </p>
+              <div className="grid gap-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="temperature">Criatividade (Temperatura)</Label>
+                  <span className="text-sm text-muted-foreground">{formData.temperature}</span>
+                </div>
                 <Slider
-                  value={[formData.temperature]}
-                  onValueChange={([value]) =>
-                    setFormData({ ...formData, temperature: value })
-                  }
+                  id="temperature"
                   min={0}
                   max={1}
                   step={0.1}
-                  className="w-full"
+                  value={[formData.temperature]}
+                  onValueChange={([value]) => setFormData({ ...formData, temperature: value })}
+                  className="py-4"
                 />
               </div>
 
