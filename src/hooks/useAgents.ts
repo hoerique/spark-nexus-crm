@@ -78,9 +78,7 @@ export function useAgents() {
         .from("ai_agents")
         .insert({
           name: agentData.name,
-          title: agentData.title || null,
           description: agentData.description || null,
-          agent_type: agentData.agent_type || "custom",
           channel: agentData.channel || "whatsapp",
           system_prompt: agentData.system_prompt,
           system_rules: agentData.system_rules || null,
