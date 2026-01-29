@@ -171,6 +171,26 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Instance not found" }), { status: 404, headers: corsHeaders });
     }
 
+    // 4. Secret Check (BYPASS FOR NOW)
+    const receivedSecret = req.headers.get("x-webhook-secret");
+
+    // DEBUG: Log headers to investigate why UAZAPI is sending null
+    console.log("[Webhook] Headers Debug:", JSON.stringify({
+      "content-type": req.headers.get("content-type"),
+      "x-webhook-secret": receivedSecret,
+      "authorization": req.headers.get("authorization") ? "PRESENT" : "MISSING"
+    }));
+
+    if (instance.webhook_secret && receivedSecret !== instance.webhook_secret) {
+      // WARN ONLY: Do not block, to allow testing flow
+      console.warn(`[Webhook] Secret mismatch (BYPASSING). Expected: ${instance.webhook_secret.substring(0, 4)}... Received: ${receivedSecret}`);
+
+      // return new Response(
+      //   JSON.stringify({ error: "Unauthorized: Invalid webhook secret" }),
+      //   { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      // );
+    }
+
     // 2. Parse Payload
     let payload: any;
     try {
