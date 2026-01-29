@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Plus, Bot, Loader2, Search } from "lucide-react";
+import { Plus, Bot, Loader2, Search, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAgents, Agent, AgentFormData } from "@/hooks/useAgents";
@@ -67,57 +67,63 @@ export default function Agents() {
 
   return (
     <AppLayout>
-      <div className="p-6 lg:p-8">
+      <div className="p-6 lg:p-8 space-y-8 animate-in fade-in duration-500">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-8">
+        <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
           <div>
-            <h1 className="text-2xl font-bold">Agentes de IA</h1>
-            <p className="text-muted-foreground">
-              Gerencie seus assistentes virtuais para WhatsApp e Chat
+            <h1 className="text-3xl font-bold tracking-tight">Agentes de IA</h1>
+            <p className="text-muted-foreground mt-1">
+              Gerencie seus assistentes virtuais inteligentes
             </p>
           </div>
-          <div className="flex gap-3">
-            <div className="relative">
+          <div className="flex gap-3 w-full sm:w-auto">
+            <div className="relative flex-1 sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input
                 placeholder="Buscar agentes..."
-                className="pl-9 w-64 bg-secondary/50"
+                className="pl-9 bg-secondary/30 border-border/50 focus:bg-background transition-colors"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
             <Button
-              className="gradient-primary text-primary-foreground"
+              className="gradient-primary text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300"
               onClick={() => handleOpenForm()}
             >
-              <Plus className="w-4 h-4 mr-2" /> Criar Agente
+              <Plus className="w-4 h-4 mr-2" /> Novo Agente
             </Button>
           </div>
         </div>
 
         {/* Loading State */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+          <div className="flex items-center justify-center py-32">
+            <div className="flex flex-col items-center gap-4">
+              <Loader2 className="w-10 h-10 animate-spin text-primary" />
+              <p className="text-muted-foreground animate-pulse">Carregando seus agentes...</p>
+            </div>
           </div>
         ) : filteredAgents.length === 0 ? (
           /* Empty State */
-          <div className="text-center py-20">
-            <Bot className="w-16 h-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-semibold mb-2">
-              {searchTerm ? "Nenhum agente encontrado" : "Nenhum agente criado"}
+          <div className="flex flex-col items-center justify-center py-32 text-center animate-in zoom-in-95 duration-500">
+            <div className="w-20 h-20 rounded-2xl bg-primary/10 flex items-center justify-center mb-6">
+              <Bot className="w-10 h-10 text-primary opacity-80" />
+            </div>
+            <h3 className="text-xl font-semibold mb-2">
+              {searchTerm ? "Nenhum agente encontrado" : "Comece sua jornada com IA"}
             </h3>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-muted-foreground mb-8 max-w-md">
               {searchTerm
-                ? "Tente buscar com outros termos"
-                : "Crie seu primeiro agente de IA para automatizar atendimentos"}
+                ? "Tente buscar com outros termos ou limpe o filtro."
+                : "Crie agentes inteligentes para automatizar seu atendimento e qualificar leads 24/7."}
             </p>
             {!searchTerm && (
               <Button
-                className="gradient-primary text-primary-foreground"
+                size="lg"
+                className="gradient-primary text-primary-foreground shadow-xl hover:scale-105 transition-all duration-300"
                 onClick={() => handleOpenForm()}
               >
-                <Plus className="w-4 h-4 mr-2" /> Criar Primeiro Agente
+                <Sparkles className="w-4 h-4 mr-2" /> Criar Primeiro Agente
               </Button>
             )}
           </div>
