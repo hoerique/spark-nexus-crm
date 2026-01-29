@@ -109,15 +109,21 @@ function extractMessageContent(messageData: any): { type: string; content: strin
 
 async function sendWhatsAppMessage(serverUrl: string, instanceToken: string, remoteJid: string, message: string) {
   try {
+    // Garantir que a URL não tenha barra no final
     const cleanUrl = serverUrl.replace(/\/+$/, "");
-    const endpoint = cleanUrl.includes("/instance/") ? "/message/sendText" : "/instance/message/sendText";
+
+    // Endpoint padrão para envio de texto (mesmo padrão usado na function whatsapp-send)
+    const endpoint = "/message/sendText";
     const finalUrl = `${cleanUrl}${endpoint}`;
 
     console.log(`[Webhook] Sending reply to ${remoteJid} via ${finalUrl}`);
 
     const response = await fetch(finalUrl, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "apikey": instanceToken },
+      headers: {
+        "Content-Type": "application/json",
+        "apikey": instanceToken
+      },
       body: JSON.stringify({
         number: remoteJid.replace("@s.whatsapp.net", ""),
         text: message,
@@ -137,6 +143,9 @@ async function sendWhatsAppMessage(serverUrl: string, instanceToken: string, rem
 }
 
 serve(async (req) => {
+  // STARTUP DEBUG
+  console.log(`[Webhook] v5.2 STARTUP - Method: ${req.method} - URL: ${req.url}`);
+
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   const url = new URL(req.url);
