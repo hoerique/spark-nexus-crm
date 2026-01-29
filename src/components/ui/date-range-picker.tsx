@@ -42,11 +42,11 @@ export function DateRangePicker({
                         {date?.from ? (
                             date.to ? (
                                 <>
-                                    {format(date.from, "LDL", { locale: ptBR })} -{" "}
-                                    {format(date.to, "LDL", { locale: ptBR })}
+                                    {format(date.from, "dd/MM/yyyy", { locale: ptBR })} -{" "}
+                                    {format(date.to, "dd/MM/yyyy", { locale: ptBR })}
                                 </>
                             ) : (
-                                format(date.from, "LDL", { locale: ptBR })
+                                format(date.from, "dd/MM/yyyy", { locale: ptBR })
                             )
                         ) : (
                             <span>Selecione uma data</span>
