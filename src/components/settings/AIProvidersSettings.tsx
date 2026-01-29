@@ -65,8 +65,10 @@ const PROVIDERS = [
     bgColor: "bg-blue-500/20",
     description: "Gemini 1.5 Pro e Flash",
     models: [
+      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash (Recomendado)" },
+      { value: "gemini-1.5-flash-001", label: "Gemini 1.5 Flash (v001)" },
       { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
-      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash" },
+      { value: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash (Experimental)" },
     ],
     requiresKey: true,
   },
