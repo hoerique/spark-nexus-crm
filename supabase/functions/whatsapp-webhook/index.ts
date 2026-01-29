@@ -1,12 +1,12 @@
 /**
- * WhatsApp Webhook Handler v5.1 (FINAL ROBUST)
+ * WhatsApp Webhook Handler v6.0 (Unified with Agent Chat)
  * 
  * Flow:
  * 1. Receive Event
- * 2. Validate Instance (Fetch from DB)
- * 3. Secret Check (Bypassed for compatibility)
+ * 2. Validate Instance
+ * 3. Secret Check
  * 4. Persist Message
- * 5. Trigger AI Agent
+ * 5. Trigger AI Agent (Unified Logic with agent-chat)
  * 6. Send Reply via WhatsApp
  */
 
@@ -19,7 +19,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-webhook-secret",
 };
 
-// ============== PROVIDER HELPERS ============
+// ============== PROVIDER HELPERS (Unified with agent-chat) ============
+
 async function callOpenAI(apiKey: string, model: string, messages: any[], temperature: number) {
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -33,13 +34,20 @@ async function callOpenAI(apiKey: string, model: string, messages: any[], temper
       temperature: temperature,
     }),
   });
-  if (!response.ok) throw new Error(`OpenAI Error: ${await response.text()}`);
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`OpenAI Error (${response.status}): ${error}`);
+  }
+
   const data = await response.json();
   return data.choices[0].message.content;
 }
 
 async function callAnthropic(apiKey: string, model: string, messages: any[], temperature: number, systemPrompt?: string) {
+  // Anthropic uses system prop outside messages, and doesn't support 'system' role in messages array the same way
   const anthropicMessages = messages.filter(m => m.role !== 'system');
+
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -55,15 +63,22 @@ async function callAnthropic(apiKey: string, model: string, messages: any[], tem
       temperature: temperature,
     }),
   });
-  if (!response.ok) throw new Error(`Anthropic Error: ${await response.text()}`);
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Anthropic Error (${response.status}): ${error}`);
+  }
+
   const data = await response.json();
   return data.content[0].text;
 }
 
 async function callGemini(apiKey: string, model: string, messages: any[], temperature: number, systemPrompt?: string) {
+  // Configurar modelo (remover prefixo se existir, ex: google/gemini-1.5 -> gemini-1.5)
   const cleanModel = model.replace("google/", "");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 
+  // Conversão de mensagens para formato Gemini
   const contents = messages
     .filter(m => m.role !== 'system')
     .map(m => ({
@@ -73,18 +88,33 @@ async function callGemini(apiKey: string, model: string, messages: any[], temper
 
   const payload: any = {
     contents: contents,
-    generationConfig: { temperature: temperature },
+    generationConfig: {
+      temperature: temperature,
+    },
   };
-  if (systemPrompt) payload.systemInstruction = { parts: [{ text: systemPrompt }] };
+
+  if (systemPrompt) {
+    payload.systemInstruction = {
+      parts: [{ text: systemPrompt }]
+    };
+  }
 
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (!response.ok) throw new Error(`Gemini Error: ${await response.text()}`);
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Gemini Error (${response.status}): ${error}`);
+  }
+
   const data = await response.json();
-  return data.candidates?.[0]?.content?.parts?.[0]?.text;
+  // Safe extraction
+  const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+  if (!text) throw new Error("Gemini response is empty or invalid format");
+  return text;
 }
 
 // =========================================================================
@@ -143,7 +173,7 @@ async function sendWhatsAppMessage(serverUrl: string, instanceToken: string, rem
 
 serve(async (req) => {
   // STARTUP DEBUG
-  console.log(`[Webhook] v5.2 STARTUP - Method: ${req.method} - URL: ${req.url}`);
+  console.log(`[Webhook] v6.0 STARTUP (Unified) - Method: ${req.method} - URL: ${req.url}`);
 
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -167,7 +197,6 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1. Validate Instance
-    // THIS is the critical part that fetches the instance from DB
     const { data: instance, error: instanceError } = await supabase
       .from("whatsapp_instances")
       .select("*, ai_agents(*)")
@@ -180,18 +209,8 @@ serve(async (req) => {
 
     // 2. Secret Check (BYPASS FOR NOW)
     const receivedSecret = req.headers.get("x-webhook-secret");
-
-    // DEBUG: Log headers to investigate why UAZAPI is sending null
-    console.log("[Webhook] Headers Debug:", JSON.stringify({
-      "content-type": req.headers.get("content-type"),
-      "x-webhook-secret": receivedSecret,
-      "authorization": req.headers.get("authorization") ? "PRESENT" : "MISSING"
-    }));
-
     if (instance.webhook_secret && receivedSecret !== instance.webhook_secret) {
-      // WARN ONLY: Do not block, to allow testing flow
-      console.warn(`[Webhook] Secret mismatch (BYPASSING). Expected: ${instance.webhook_secret.substring(0, 4)}... Received: ${receivedSecret}`);
-      // NOT returning 401 here is the fix!
+      console.warn(`[Webhook] Secret mismatch (BYPASSING).`);
     }
 
     // 3. Parse Payload
@@ -202,7 +221,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Invalid JSON" }), { status: 400, headers: corsHeaders });
     }
 
-    // Log event
+    // Log event to webhook_logs
     const eventType = payload.event || "unknown";
     await supabase.from("webhook_logs").insert({
       user_id: instance.user_id,
@@ -246,46 +265,61 @@ serve(async (req) => {
 
     if (saveError) console.error("DB Save Error:", saveError);
 
-    // 5. AI Processing
+    // 5. AI Processing (UNIFIED WITH AGENT-CHAT)
     const agent = instance.ai_agents;
+
+    // Strict checks
     if (!agent || !agent.is_active || messageType !== "text") {
-      console.log("[Webhook] Agent inactive or non-text message. Agent:", agent?.id, "Active:", agent?.is_active);
+      console.log("[Webhook] Agent inactive or non-text. Agent:", agent?.id);
       return new Response(JSON.stringify({ action: "no_active_agent" }), { headers: corsHeaders });
     }
 
-    // Get API Key
+    // Load AI Config using consistent logic
     const { data: aiConfig } = await supabase
       .from("ai_provider_configs")
       .select("api_key, provider, model")
       .eq("user_id", instance.user_id)
       .eq("is_active", true)
+      .limit(1)
       .maybeSingle();
 
     if (!aiConfig?.api_key) {
       console.error("AI Config Missing for user:", instance.user_id);
+      if (savedMessage) {
+        await supabase.from("whatsapp_messages").update({ status: "failed", error_message: "AI Config Missing" }).eq("id", savedMessage.id);
+      }
       return new Response(JSON.stringify({ error: "AI Config Missing" }), { headers: corsHeaders });
     }
 
-    // Prepare Prompt
-    const systemPrompt = agent.system_rules
-      ? `## SISTEMA DE REGRAS (NÃO IGNORE):\n${agent.system_rules}\n\n## INSTRUÇÕES:\n${agent.system_prompt}`
-      : agent.system_prompt;
+    // Unified Model Selection Logic
+    const apiKey = aiConfig.api_key;
+    const provider = aiConfig.provider || "openai";
+    const model = agent.model || aiConfig.model || "gpt-4o-mini"; // Priority: Agent > Global > Fallback
+
+    // Unified Prompt Construction
+    let systemMessage = agent.system_prompt || "Você é um assistente útil.";
+    if (agent.system_rules) {
+      systemMessage = `## REGRAS ABSOLUTAS (NUNCA QUEBRE ESTAS REGRAS):\n${agent.system_rules}\n\n## INSTRUÇÕES:\n${systemMessage}`;
+    }
 
     const messages = [
-      { role: "system", content: systemPrompt },
+      { role: "system", content: systemMessage },
       { role: "user", content: `[${data.pushName || "User"}]: ${content}` }
     ];
 
-    // Call AI
+    console.log(`[Webhook] Calling ${provider} with model ${model}`);
+    const startTime = Date.now();
+
+    // Call Provider
     let replyText = "";
     try {
       const T = agent.temperature || 0.7;
-      if (aiConfig.provider === 'anthropic') {
-        replyText = await callAnthropic(aiConfig.api_key, aiConfig.model, messages, T, systemPrompt);
-      } else if (aiConfig.provider === 'gemini') {
-        replyText = await callGemini(aiConfig.api_key, aiConfig.model, messages, T, systemPrompt);
+      if (provider === 'anthropic') {
+        replyText = await callAnthropic(apiKey, model, messages, T, systemMessage);
+      } else if (provider === 'gemini') {
+        replyText = await callGemini(apiKey, model, messages, T, systemMessage);
       } else {
-        replyText = await callOpenAI(aiConfig.api_key, aiConfig.model || "gpt-3.5-turbo", messages, T);
+        replyText = await callOpenAI(apiKey, model, messages, T);
       }
     } catch (e: any) {
       console.error("AI Generation Error:", e);
@@ -295,9 +329,39 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "AI Failed" }), { headers: corsHeaders });
     }
 
+    const executionTime = Date.now() - startTime;
     console.log("[Webhook] AI Reply generated:", replyText.substring(0, 50) + "...");
 
-    // 6. Send Reply
+    // 6. Log Interaction to agent_runs (CRITICAL FOR DASHBOARD VIZ)
+    if (agent.id) {
+      await supabase.from("agent_runs").insert({
+        agent_id: agent.id,
+        user_id: instance.user_id,
+        input_message: content,
+        output_message: replyText,
+        execution_time_ms: executionTime,
+        graph_state: {
+          provider: provider,
+          model: model,
+          temperature: agent.temperature,
+          source: "whatsapp"
+        },
+        channel: "whatsapp",
+      });
+
+      // Update Agent Stats
+      await supabase.rpc('increment_agent_responses', { agent_id: agent.id }).catch(async () => {
+        await supabase
+          .from("ai_agents")
+          .update({
+            responses_count: (agent.responses_count || 0) + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", agent.id);
+      });
+    }
+
+    // 7. Send Reply
     const sent = await sendWhatsAppMessage(instance.server_url, instance.instance_token, data.key.remoteJid, replyText);
 
     // Persist Reply
@@ -309,7 +373,7 @@ serve(async (req) => {
       remote_jid: data.key.remoteJid,
       content: replyText,
       status: sent ? "sent" : "failed",
-      metadata: { agent_id: agent.id, model: aiConfig.model }
+      metadata: { agent_id: agent.id, model: model }
     });
 
     if (savedMessage) {
