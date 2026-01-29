@@ -12,7 +12,7 @@ const Index = () => {
             <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
               <Zap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-foreground">CRM AI</span>
+            <span className="text-xl font-bold text-foreground">Luiza IA</span>
           </div>
           <nav className="flex items-center gap-4">
             <Link to="/auth">
@@ -34,16 +34,16 @@ const Index = () => {
             <span className="w-2 h-2 rounded-full bg-success animate-pulse" />
             <span className="text-sm text-muted-foreground">Plataforma ativa com +1000 usuários</span>
           </div>
-          
+
           <h1 className="text-5xl md:text-6xl font-bold mb-6 leading-tight">
             <span className="text-foreground">CRM Inteligente com </span>
             <span className="text-gradient">Agentes de IA</span>
           </h1>
-          
+
           <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
             Gerencie leads, automatize atendimentos via WhatsApp e potencialize suas vendas com agentes de IA personalizados.
           </p>
-          
+
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link to="/auth">
               <Button size="lg" className="gradient-primary text-primary-foreground px-8 glow-primary">
@@ -63,7 +63,7 @@ const Index = () => {
       <section className="py-20 px-6 bg-secondary/20">
         <div className="container mx-auto">
           <h2 className="text-3xl font-bold text-center mb-12">Tudo que você precisa em um só lugar</h2>
-          
+
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
               { icon: MessageSquare, title: "WhatsApp Integrado", desc: "Conecte sua API do WhatsApp e gerencie todas as conversas em tempo real" },
@@ -105,7 +105,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="border-t border-border/50 py-8 px-6">
         <div className="container mx-auto text-center text-muted-foreground">
-          <p>© 2026 CRM AI. Todos os direitos reservados.</p>
+          <p>© 2026 Luiza IA. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>
