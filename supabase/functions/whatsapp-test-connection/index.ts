@@ -24,16 +24,23 @@ serve(async (req) => {
   }
 
   try {
+    console.log("[TestConnection] v4.0 - Request received");
+
     // 1. Get Token
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      console.error("[TestConnection] Missing Authorization header");
-      return new Response(JSON.stringify({ error: "Missing Authorization header" }), { status: 401, headers: corsHeaders });
+      console.error("[TestConnection] Error: Missing Authorization header");
+      return new Response(JSON.stringify({ error: "Missing Authorization header", step: "header_check" }), { status: 401, headers: corsHeaders });
     }
 
-    // 2. Setup Clients
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    // 2. Setup Clients & Debug Env
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("[TestConnection] Error: Missing Environment Variables (SUPABASE_URL or ANON_KEY)");
+      return new Response(JSON.stringify({ error: "Server Configuration Error: Missing Env Vars" }), { status: 500, headers: corsHeaders });
+    }
 
     // 3. Verify User (Using global headers for context)
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
@@ -43,14 +50,21 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
 
     if (userError || !user) {
-      console.error("[TestConnection] Auth failed:", userError);
+      console.error("[TestConnection] Auth failed:", JSON.stringify(userError));
+      console.log("[TestConnection] Bad Auth Header:", authHeader.substring(0, 20) + "...");
+
       return new Response(
-        JSON.stringify({ error: "Unauthorized", details: userError }),
+        JSON.stringify({
+          error: "Unauthorized",
+          details: userError,
+          hint: "Token might be expired or invalid",
+          step: "auth_verification"
+        }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    // console.log("[TestConnection] Authenticated user:", user.id);
+    console.log("[TestConnection] Auth Success. User:", user.id);
 
     const { instanceId, serverUrl, instanceToken } = await req.json() as TestConnectionRequest;
 
