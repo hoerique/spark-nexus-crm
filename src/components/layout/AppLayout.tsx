@@ -1,7 +1,8 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { 
-  LayoutDashboard, Users, MessageSquare, Bot, Settings, LogOut, 
+import { supabase } from "@/integrations/supabase/client";
+import {
+  LayoutDashboard, Users, MessageSquare, Bot, Settings, LogOut,
   Zap, ChevronLeft, Menu
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -41,9 +42,9 @@ export function AppLayout({ children }: AppLayoutProps) {
               <span className="font-bold text-foreground">CRM AI</span>
             </Link>
           )}
-          <Button 
-            variant="ghost" 
-            size="icon" 
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setCollapsed(!collapsed)}
             className="text-sidebar-foreground hover:text-foreground"
           >
@@ -61,8 +62,8 @@ export function AppLayout({ children }: AppLayoutProps) {
                 to={item.path}
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
-                  isActive 
-                    ? "bg-sidebar-accent text-sidebar-primary font-medium" 
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-primary font-medium"
                     : "text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground"
                 )}
               >
@@ -75,13 +76,17 @@ export function AppLayout({ children }: AppLayoutProps) {
 
         {/* User Section */}
         <div className="p-3 border-t border-sidebar-border">
-          <Link 
-            to="/"
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground transition-colors"
+          <Button
+            variant="ghost"
+            className="w-full flex items-center justify-start gap-3 px-3 py-2.5 rounded-lg text-sidebar-foreground hover:bg-sidebar-accent/50 hover:text-foreground transition-colors"
+            onClick={async () => {
+              await supabase.auth.signOut();
+              window.location.href = "/auth";
+            }}
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-5 h-5 flex-shrink-0" />
             {!collapsed && <span>Sair</span>}
-          </Link>
+          </Button>
         </div>
       </aside>
 

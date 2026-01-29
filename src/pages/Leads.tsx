@@ -1,12 +1,13 @@
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, Loader2, Trash2, PlusCircle, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { KanbanColumn } from "@/components/leads/KanbanColumn";
 import { LeadFormDialog, LeadFormData } from "@/components/leads/LeadFormDialog";
 import { useLeads } from "@/hooks/useLeads";
 import { Tables } from "@/integrations/supabase/types";
+import { toast } from "sonner";
 
 export default function Leads() {
   const { leads, loading, createLead, updateLead, deleteLead, updateLeadStatus } = useLeads();
@@ -39,6 +40,28 @@ export default function Leads() {
     setColumns(columns.map(col =>
       col.id === columnId ? { ...col, title: newTitle } : col
     ));
+  };
+
+  const handleAddColumn = () => {
+    const id = `col-${Date.now()}`;
+    const newColumn = {
+      id,
+      title: "Nova Coluna",
+      color: "bg-secondary",
+    };
+    setColumns([...columns, newColumn]);
+    toast.success("Coluna adicionada!");
+  };
+
+  const handleDeleteColumn = (columnId: string) => {
+    const leadsInColumn = leads.filter(l => l.status === columnId).length;
+    if (leadsInColumn > 0) {
+      if (!confirm(`Existem ${leadsInColumn} leads nesta coluna. Eles ficarão ocultos se você excluir. Deseja continuar?`)) {
+        return;
+      }
+    }
+    setColumns(columns.filter(col => col.id !== columnId));
+    toast.success("Coluna removida!");
   };
 
   const filteredLeads = leads.filter((lead) =>
@@ -107,20 +130,31 @@ export default function Leads() {
         ) : (
           /* Kanban Board */
           <div className="flex-1 overflow-x-auto">
-            <div className="flex gap-4 min-w-max pb-4">
+            <div className="flex gap-4 min-w-max pb-4 h-full">
               {columns.map((column) => (
-                <div key={column.id} className="flex flex-col gap-2">
+                <div key={column.id} className="flex flex-col gap-2 group">
                   {/* Column Header Editable */}
-                  <div className="flex items-center gap-2 px-1">
+                  <div className="flex items-center gap-2 px-1 relative">
                     <div className={`w-3 h-3 rounded-full ${column.color}`} />
                     <Input
                       value={column.title}
                       onChange={(e) => handleTitleChange(column.id, e.target.value)}
                       className="h-8 bg-transparent border-transparent hover:border-input focus:border-input font-semibold w-40 px-1"
                     />
-                    <span className="text-xs text-muted-foreground ml-auto bg-secondary/50 px-2 py-0.5 rounded-full">
-                      {filteredLeads.filter((l) => l.status === column.id).length}
-                    </span>
+                    <div className="flex items-center ml-auto gap-1">
+                      <span className="text-xs text-muted-foreground bg-secondary/50 px-2 py-0.5 rounded-full">
+                        {filteredLeads.filter((l) => l.status === column.id).length}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 hover:text-destructive"
+                        onClick={() => handleDeleteColumn(column.id)}
+                        title="Excluir coluna"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                    </div>
                   </div>
 
                   <KanbanColumn
@@ -135,6 +169,19 @@ export default function Leads() {
                   />
                 </div>
               ))}
+
+              {/* Add Column Button */}
+              <div className="w-72 flex-shrink-0 flex items-start justify-center pt-2 opacity-50 hover:opacity-100 transition-opacity">
+                <Button
+                  variant="ghost"
+                  className="w-full h-12 border-2 border-dashed border-muted-foreground/30 hover:border-primary/50 text-muted-foreground hover:text-primary gap-2"
+                  onClick={handleAddColumn}
+                >
+                  <PlusCircle className="w-5 h-5" />
+                  Adicionar Coluna
+                </Button>
+              </div>
+
             </div>
           </div>
         )}
