@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -110,6 +111,11 @@ export function AgentFormDialog({
           <DialogTitle>
             {agent ? "Editar Agente" : "Criar Novo Agente"}
           </DialogTitle>
+          <DialogDescription>
+            {agent
+              ? "Edite as informações e configurações do seu agente de IA abaixo."
+              : "Preencha os dados abaixo para criar um novo agente de IA e conectá-lo aos seus canais."}
+          </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit}>

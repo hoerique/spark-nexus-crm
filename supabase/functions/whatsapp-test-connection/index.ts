@@ -24,36 +24,33 @@ serve(async (req) => {
   }
 
   try {
-    // Validate JWT authentication
+    // 1. Get Token
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized" }),
-        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!authHeader) {
+      console.error("[TestConnection] Missing Authorization header");
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), { status: 401, headers: corsHeaders });
     }
 
+    // 2. Setup Clients
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Create client with user's auth token to validate
-    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
-      global: { headers: { Authorization: authHeader } }
+    // 3. Verify User (Using global headers for context)
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getUser(token);
-    
-    if (claimsError || !claimsData?.user) {
-      console.error("Auth error:", claimsError);
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+    if (userError || !user) {
+      console.error("[TestConnection] Auth failed:", userError);
       return new Response(
-        JSON.stringify({ error: "Invalid token" }),
+        JSON.stringify({ error: "Unauthorized", details: userError }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    console.log("Authenticated user:", claimsData.user.id);
+    // console.log("[TestConnection] Authenticated user:", user.id);
 
     const { instanceId, serverUrl, instanceToken } = await req.json() as TestConnectionRequest;
 
@@ -62,6 +59,7 @@ serve(async (req) => {
 
     // Se foi passado instanceId, buscar dados do banco
     if (instanceId) {
+      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
       const { data: instance, error } = await supabase
@@ -88,8 +86,15 @@ serve(async (req) => {
       );
     }
 
+    // Adjust URL construction (Smart Handling)
+    const cleanUrl = testUrl.replace(/\/+$/, "");
+    const endpoint = cleanUrl.includes("/instance/") ? "/connectionState" : "/instance/connectionState";
+    const finalUrl = `${cleanUrl}${endpoint}`;
+
+    // console.log(`[TestConnection] Testing URL: ${finalUrl}`);
+
     // Testar conexão com UAZAPI (endpoint de status)
-    const response = await fetch(`${testUrl}/instance/connectionState`, {
+    const response = await fetch(finalUrl, {
       method: "GET",
       headers: {
         "apikey": testToken,
@@ -99,7 +104,7 @@ serve(async (req) => {
     if (!response.ok) {
       const errorText = await response.text();
       console.error("UAZAPI connection test failed:", response.status, errorText);
-      
+
       return new Response(
         JSON.stringify({
           connected: false,
@@ -115,7 +120,6 @@ serve(async (req) => {
 
     // Se foi passado instanceId, atualizar status no banco
     if (instanceId) {
-      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
       const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
       const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
