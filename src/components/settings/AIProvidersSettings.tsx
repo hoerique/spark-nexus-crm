@@ -14,8 +14,9 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Check, Sparkles, Zap, Brain, Cpu } from "lucide-react";
+import { Check } from "lucide-react";
 import { toast } from "sonner";
+import { AI_PROVIDERS as PROVIDERS } from "@/lib/ai-models";
 
 interface ProviderConfig {
   id?: string;
@@ -26,65 +27,6 @@ interface ProviderConfig {
   max_tokens: number;
   is_active: boolean;
 }
-
-const PROVIDERS = [
-  {
-    id: "openai",
-    name: "OpenAI",
-    icon: Cpu,
-    color: "text-green-400",
-    bgColor: "bg-green-500/20",
-    description: "GPT-4o, GPT-4 Turbo e mais",
-    models: [
-      { value: "gpt-4o", label: "GPT-4o (Mais inteligente)" },
-      { value: "gpt-4-turbo", label: "GPT-4 Turbo" },
-      { value: "gpt-4", label: "GPT-4" },
-      { value: "gpt-3.5-turbo", label: "GPT-3.5 Turbo (Mais rápido)" },
-    ],
-    requiresKey: true,
-  },
-  {
-    id: "anthropic",
-    name: "Anthropic",
-    icon: Brain,
-    color: "text-orange-400",
-    bgColor: "bg-orange-500/20",
-    description: "Claude 3.5 Sonnet, 3 Opus e Haiku",
-    models: [
-      { value: "claude-3-5-sonnet-20241022", label: "Claude 3.5 Sonnet" },
-      { value: "claude-3-opus-20240229", label: "Claude 3 Opus" },
-      { value: "claude-3-haiku-20240307", label: "Claude 3 Haiku" },
-    ],
-    requiresKey: true,
-  },
-  {
-    id: "gemini",
-    name: "Google Gemini",
-    icon: Zap,
-    color: "text-blue-400",
-    bgColor: "bg-blue-500/20",
-    description: "Gemini 1.5 Pro e Flash",
-    models: [
-      { value: "gemini-1.5-flash", label: "Gemini 1.5 Flash (Recomendado)" },
-      { value: "gemini-1.5-flash-001", label: "Gemini 1.5 Flash (v001)" },
-      { value: "gemini-1.5-pro", label: "Gemini 1.5 Pro" },
-      { value: "gemini-2.0-flash-exp", label: "Gemini 2.0 Flash (Experimental)" },
-    ],
-    requiresKey: true,
-  },
-  {
-    id: "lovable",
-    name: "Lovable AI (Legado)",
-    icon: Sparkles,
-    color: "text-purple-400",
-    bgColor: "bg-purple-500/20",
-    description: "Gateway integrado (Descontinuado)",
-    models: [
-      { value: "default", label: "Padrão" }
-    ],
-    requiresKey: true,
-  },
-];
 
 function ProviderCard({
   provider,

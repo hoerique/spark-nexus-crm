@@ -22,6 +22,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Agent, AgentFormData } from "@/hooks/useAgents";
+import { AI_PROVIDERS } from "@/lib/ai-models";
 
 interface AgentFormDialogProps {
   open: boolean;
@@ -251,23 +252,16 @@ export function AgentFormDialog({
                     <SelectValue placeholder="Selecione o modelo" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectGroup>
-                      <SelectLabel>OpenAI</SelectLabel>
-                      <SelectItem value="gpt-4o">GPT-4o</SelectItem>
-                      <SelectItem value="gpt-4-turbo">GPT-4 Turbo</SelectItem>
-                      <SelectItem value="gpt-3.5-turbo">GPT-3.5 Turbo</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Anthropic</SelectLabel>
-                      <SelectItem value="claude-3-5-sonnet-20241022">Claude 3.5 Sonnet</SelectItem>
-                      <SelectItem value="claude-3-opus-20240229">Claude 3 Opus</SelectItem>
-                      <SelectItem value="claude-3-haiku-20240307">Claude 3 Haiku</SelectItem>
-                    </SelectGroup>
-                    <SelectGroup>
-                      <SelectLabel>Google Gemini</SelectLabel>
-                      <SelectItem value="gemini-1.5-pro">Gemini 1.5 Pro</SelectItem>
-                      <SelectItem value="gemini-1.5-flash">Gemini 1.5 Flash</SelectItem>
-                    </SelectGroup>
+                    {AI_PROVIDERS.filter(p => p.id !== 'lovable').map((provider) => (
+                      <SelectGroup key={provider.id}>
+                        <SelectLabel>{provider.name}</SelectLabel>
+                        {provider.models.map((model) => (
+                          <SelectItem key={model.value} value={model.value}>
+                            {model.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
