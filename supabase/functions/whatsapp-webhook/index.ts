@@ -231,13 +231,24 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, action: "ignored_structure" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    if (data.key.fromMe) {
-      return new Response(JSON.stringify({ success: true, action: "ignored_self" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    if (data.key.fromMe || data.wasSentByApi) {
+      return new Response(JSON.stringify({ success: true, action: "ignored_self_or_api" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
     const { type: messageType, content, mediaUrl } = extractMessageContent(data);
     const remoteJid = data.key.remoteJid;
     const pushName = data.pushName || "Usuário";
+
+    // 5.5 Ignorar Status Updates (Broadcasts)
+    if (remoteJid === "status@broadcast") {
+      return new Response(JSON.stringify({ success: true, action: "ignored_broadcast" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+
+    // 5.6 Ignorar Grupos (conforme solicitado pelo usuário)
+    if (remoteJid.endsWith("@g.us")) {
+      console.log(`[Webhook] Ignoring group message from ${remoteJid}`);
+      return new Response(JSON.stringify({ success: true, action: "ignored_group" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
 
     if (!content || !remoteJid) {
       return new Response(JSON.stringify({ success: true, action: "ignored_content" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
