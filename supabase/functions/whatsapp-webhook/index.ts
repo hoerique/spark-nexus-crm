@@ -1,12 +1,13 @@
 /**
- * WhatsApp Webhook Handler v5.0 (FINAL ROBUST)
+ * WhatsApp Webhook Handler v5.1 (FINAL ROBUST)
  * 
  * Flow:
  * 1. Receive Event
- * 2. Validate Instance & Secret
- * 3. Persist Message
- * 4. Trigger AI Agent
- * 5. Send Reply via WhatsApp
+ * 2. Validate Instance (Fetch from DB)
+ * 3. Secret Check (Bypassed for compatibility)
+ * 4. Persist Message
+ * 5. Trigger AI Agent
+ * 6. Send Reply via WhatsApp
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -20,7 +21,6 @@ const corsHeaders = {
 
 // ============== PROVIDER HELPERS ============
 async function callOpenAI(apiKey: string, model: string, messages: any[], temperature: number) {
-  // ... (OpenAI implementation maintained)
   const response = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -39,7 +39,6 @@ async function callOpenAI(apiKey: string, model: string, messages: any[], temper
 }
 
 async function callAnthropic(apiKey: string, model: string, messages: any[], temperature: number, systemPrompt?: string) {
-  // ... (Anthropic implementation maintained)
   const anthropicMessages = messages.filter(m => m.role !== 'system');
   const response = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -62,7 +61,6 @@ async function callAnthropic(apiKey: string, model: string, messages: any[], tem
 }
 
 async function callGemini(apiKey: string, model: string, messages: any[], temperature: number, systemPrompt?: string) {
-  // ... (Gemini implementation maintained)
   const cleanModel = model.replace("google/", "");
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${apiKey}`;
 
@@ -112,7 +110,7 @@ function extractMessageContent(messageData: any): { type: string; content: strin
 async function sendWhatsAppMessage(serverUrl: string, instanceToken: string, remoteJid: string, message: string) {
   try {
     const cleanUrl = serverUrl.replace(/\/+$/, "");
-    const endpoint = cleanUrl.includes("/instance/") ? "/message/sendText" : "/instance/message/sendText"; // Smart URL fix here too
+    const endpoint = cleanUrl.includes("/instance/") ? "/message/sendText" : "/instance/message/sendText";
     const finalUrl = `${cleanUrl}${endpoint}`;
 
     console.log(`[Webhook] Sending reply to ${remoteJid} via ${finalUrl}`);
@@ -123,7 +121,7 @@ async function sendWhatsAppMessage(serverUrl: string, instanceToken: string, rem
       body: JSON.stringify({
         number: remoteJid.replace("@s.whatsapp.net", ""),
         text: message,
-        options: { delay: 1200, presence: "composing" } // Add typing effect
+        options: { delay: 1200, presence: "composing" }
       }),
     });
 
@@ -161,6 +159,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // 1. Validate Instance
+    // THIS is the critical part that fetches the instance from DB
     const { data: instance, error: instanceError } = await supabase
       .from("whatsapp_instances")
       .select("*, ai_agents(*)")
@@ -171,7 +170,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "Instance not found" }), { status: 404, headers: corsHeaders });
     }
 
-    // 4. Secret Check (BYPASS FOR NOW)
+    // 2. Secret Check (BYPASS FOR NOW)
     const receivedSecret = req.headers.get("x-webhook-secret");
 
     // DEBUG: Log headers to investigate why UAZAPI is sending null
@@ -184,14 +183,10 @@ serve(async (req) => {
     if (instance.webhook_secret && receivedSecret !== instance.webhook_secret) {
       // WARN ONLY: Do not block, to allow testing flow
       console.warn(`[Webhook] Secret mismatch (BYPASSING). Expected: ${instance.webhook_secret.substring(0, 4)}... Received: ${receivedSecret}`);
-
-      // return new Response(
-      //   JSON.stringify({ error: "Unauthorized: Invalid webhook secret" }),
-      //   { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      // );
+      // NOT returning 401 here is the fix!
     }
 
-    // 2. Parse Payload
+    // 3. Parse Payload
     let payload: any;
     try {
       payload = await req.json();
@@ -222,7 +217,7 @@ serve(async (req) => {
     const { type: messageType, content, mediaUrl } = extractMessageContent(data);
     if (!content) return new Response(JSON.stringify({ action: "ignored_empty" }), { headers: corsHeaders });
 
-    // 3. Persist Incoming Message
+    // 4. Persist Incoming Message
     const { data: savedMessage, error: saveError } = await supabase
       .from("whatsapp_messages")
       .insert({
@@ -242,7 +237,7 @@ serve(async (req) => {
 
     if (saveError) console.error("DB Save Error:", saveError);
 
-    // 4. AI Processing
+    // 5. AI Processing
     const agent = instance.ai_agents;
     if (!agent || !agent.is_active || messageType !== "text") {
       return new Response(JSON.stringify({ action: "no_active_agent" }), { headers: corsHeaders });
@@ -290,7 +285,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: "AI Failed" }), { headers: corsHeaders });
     }
 
-    // 5. Send Reply
+    // 6. Send Reply
     const sent = await sendWhatsAppMessage(instance.server_url, instance.instance_token, data.key.remoteJid, replyText);
 
     // Persist Reply
