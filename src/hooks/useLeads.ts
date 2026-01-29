@@ -11,7 +11,7 @@ export function useLeads() {
 
   const fetchLeads = async () => {
     if (!user) return;
-    
+
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -62,7 +62,7 @@ export function useLeads() {
         .single();
 
       if (error) throw error;
-      
+
       setLeads((prev) => [data, ...prev]);
       toast.success("Lead criado com sucesso!");
       return data;
@@ -83,7 +83,7 @@ export function useLeads() {
         .single();
 
       if (error) throw error;
-      
+
       setLeads((prev) =>
         prev.map((lead) => (lead.id === id ? data : lead))
       );
@@ -91,7 +91,7 @@ export function useLeads() {
       return data;
     } catch (error: any) {
       console.error("Erro ao atualizar lead:", error);
-      toast.error("Erro ao atualizar lead");
+      toast.error(error.message || "Erro ao atualizar lead");
       return null;
     }
   };
@@ -104,7 +104,7 @@ export function useLeads() {
         .eq("id", id);
 
       if (error) throw error;
-      
+
       setLeads((prev) => prev.filter((lead) => lead.id !== id));
       toast.success("Lead excluído!");
     } catch (error: any) {

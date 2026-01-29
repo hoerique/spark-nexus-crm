@@ -18,12 +18,19 @@ import {
 } from "@/components/ui/select";
 import { Tables } from "@/integrations/supabase/types";
 
+interface Column {
+  id: string;
+  title: string;
+  color: string;
+}
+
 interface LeadFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   lead?: Tables<"leads"> | null;
   onSave: (data: LeadFormData) => void;
   loading?: boolean;
+  columns?: Column[];
 }
 
 export interface LeadFormData {
@@ -37,30 +44,23 @@ export interface LeadFormData {
   notes: string;
 }
 
-const statusOptions = [
-  { value: "new", label: "Novo" },
-  { value: "contacted", label: "Contactado" },
-  { value: "qualified", label: "Qualificado" },
-  { value: "proposal", label: "Proposta" },
-  { value: "closed", label: "Fechado" },
-];
-
-const sourceOptions = [
-  { value: "website", label: "Website" },
-  { value: "whatsapp", label: "WhatsApp" },
-  { value: "referral", label: "Indicação" },
-  { value: "social", label: "Redes Sociais" },
-  { value: "ads", label: "Anúncios" },
-  { value: "other", label: "Outro" },
-];
-
 export function LeadFormDialog({
   open,
   onOpenChange,
   lead,
   onSave,
   loading,
+  columns = [],
 }: LeadFormDialogProps) {
+
+  const sourceOptions = [
+    { value: "website", label: "Website" },
+    { value: "whatsapp", label: "WhatsApp" },
+    { value: "referral", label: "Indicação" },
+    { value: "social", label: "Redes Sociais" },
+    { value: "ads", label: "Anúncios" },
+    { value: "other", label: "Outro" },
+  ];
   const [formData, setFormData] = useState<LeadFormData>({
     name: "",
     email: "",
@@ -111,7 +111,7 @@ export function LeadFormDialog({
             {lead ? "Editar Lead" : "Novo Lead"}
           </DialogTitle>
         </DialogHeader>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
@@ -124,7 +124,7 @@ export function LeadFormDialog({
                 required
               />
             </div>
-            
+
             <div>
               <Label htmlFor="email">Email</Label>
               <Input
@@ -135,7 +135,7 @@ export function LeadFormDialog({
                 placeholder="email@exemplo.com"
               />
             </div>
-            
+
             <div>
               <Label htmlFor="phone">Telefone</Label>
               <Input
@@ -145,7 +145,7 @@ export function LeadFormDialog({
                 placeholder="+55 11 99999-0000"
               />
             </div>
-            
+
             <div>
               <Label htmlFor="company">Empresa</Label>
               <Input
@@ -155,7 +155,7 @@ export function LeadFormDialog({
                 placeholder="Nome da empresa"
               />
             </div>
-            
+
             <div>
               <Label htmlFor="value">Valor</Label>
               <Input
@@ -166,7 +166,7 @@ export function LeadFormDialog({
                 placeholder="0"
               />
             </div>
-            
+
             <div>
               <Label htmlFor="status">Status</Label>
               <Select
@@ -177,15 +177,26 @@ export function LeadFormDialog({
                   <SelectValue placeholder="Selecione" />
                 </SelectTrigger>
                 <SelectContent>
-                  {statusOptions.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
+                  {columns.length > 0 ? (
+                    columns.map((col) => (
+                      <SelectItem key={col.id} value={col.id}>
+                        {col.title}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    // Fallback se não houver colunas passadas
+                    <>
+                      <SelectItem value="new">Novo</SelectItem>
+                      <SelectItem value="contacted">Contactado</SelectItem>
+                      <SelectItem value="qualified">Qualificado</SelectItem>
+                      <SelectItem value="proposal">Proposta</SelectItem>
+                      <SelectItem value="closed">Fechado</SelectItem>
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div>
               <Label htmlFor="source">Origem</Label>
               <Select
@@ -204,7 +215,7 @@ export function LeadFormDialog({
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div className="col-span-2">
               <Label htmlFor="notes">Notas</Label>
               <Textarea
@@ -216,7 +227,7 @@ export function LeadFormDialog({
               />
             </div>
           </div>
-          
+
           <div className="flex justify-end gap-3 pt-4">
             <Button
               type="button"

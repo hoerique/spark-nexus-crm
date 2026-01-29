@@ -62,8 +62,8 @@ export function KanbanColumn({
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`kanban-column space-y-3 min-h-[200px] transition-all duration-200 ${isDragOver
-            ? "bg-primary/10 border-2 border-dashed border-primary rounded-lg"
-            : ""
+          ? "bg-primary/10 border-2 border-dashed border-primary rounded-lg"
+          : ""
           }`}
       >
         {leads.map((lead) => (

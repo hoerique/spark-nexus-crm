@@ -193,6 +193,7 @@ export default function Leads() {
           lead={editingLead}
           onSave={handleSave}
           loading={saving}
+          columns={columns}
         />
       </div>
     </AppLayout>
