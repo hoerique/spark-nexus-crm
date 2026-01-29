@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Plus, Search, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -16,13 +16,24 @@ export default function Leads() {
   const [saving, setSaving] = useState(false);
 
   // Estado para colunas personalizáveis
-  const [columns, setColumns] = useState([
-    { id: "new", title: "Novos", color: "bg-info" },
-    { id: "contacted", title: "Contactados", color: "bg-warning" },
-    { id: "qualified", title: "Qualificados", color: "bg-accent" },
-    { id: "proposal", title: "Proposta", color: "bg-primary" },
-    { id: "closed", title: "Fechados", color: "bg-success" },
-  ]);
+  const [columns, setColumns] = useState(() => {
+    const saved = localStorage.getItem("kanban_columns");
+    if (saved) {
+      return JSON.parse(saved);
+    }
+    return [
+      { id: "new", title: "Novos", color: "bg-info" },
+      { id: "contacted", title: "Contactados", color: "bg-warning" },
+      { id: "qualified", title: "Qualificados", color: "bg-accent" },
+      { id: "proposal", title: "Proposta", color: "bg-primary" },
+      { id: "closed", title: "Fechados", color: "bg-success" },
+    ];
+  });
+
+  // Persistir mudanças
+  useEffect(() => {
+    localStorage.setItem("kanban_columns", JSON.stringify(columns));
+  }, [columns]);
 
   const handleTitleChange = (columnId: string, newTitle: string) => {
     setColumns(columns.map(col =>

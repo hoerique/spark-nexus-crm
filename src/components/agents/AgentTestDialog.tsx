@@ -84,7 +84,20 @@ export function AgentTestDialog({
       setLastExecutionTime(executionTime);
 
       if (response.error) {
-        throw new Error(response.error.message);
+        let errorMessage = response.error.message;
+        try {
+          // Tentar extrair a mensagem de erro real enviada pelo backend (body)
+          if (response.error instanceof Error && 'context' in response.error) {
+            const context = (response.error as any).context;
+            const body = await context.json();
+            if (body && body.error) {
+              errorMessage = body.error;
+            }
+          }
+        } catch (e) {
+          console.error("Erro ao fazer parse do erro:", e);
+        }
+        throw new Error(errorMessage);
       }
 
       const assistantMessage: Message = {
@@ -154,9 +167,8 @@ export function AgentTestDialog({
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex gap-3 ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
+                className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"
+                  }`}
               >
                 {message.role === "assistant" && (
                   <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center flex-shrink-0">
@@ -164,11 +176,10 @@ export function AgentTestDialog({
                   </div>
                 )}
                 <div
-                  className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                    message.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted"
-                  }`}
+                  className={`max-w-[80%] rounded-lg px-4 py-2 ${message.role === "user"
+                    ? "bg-primary text-primary-foreground"
+                    : "bg-muted"
+                    }`}
                 >
                   <p className="whitespace-pre-wrap">{message.content}</p>
                   <div className="flex items-center gap-2 mt-1">
