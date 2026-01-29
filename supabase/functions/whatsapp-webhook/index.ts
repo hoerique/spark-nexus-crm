@@ -126,8 +126,7 @@ async function sendWhatsAppMessage(serverUrl: string, instanceToken: string, rem
       },
       body: JSON.stringify({
         number: remoteJid.replace("@s.whatsapp.net", ""),
-        text: message,
-        options: { delay: 1200, presence: "composing" }
+        text: message
       }),
     });
 
@@ -216,6 +215,7 @@ serve(async (req) => {
     const data = payload.data;
     // Filter out irrelevant events
     if (!data || !data.key || data.key.fromMe || data.wasSentByApi || eventType !== "messages.upsert") {
+      console.log("[Webhook] Ignored event:", eventType, "FromMe:", data?.key?.fromMe, "Api:", data?.wasSentByApi);
       return new Response(JSON.stringify({ action: "ignored" }), { headers: corsHeaders });
     }
 
@@ -249,6 +249,7 @@ serve(async (req) => {
     // 5. AI Processing
     const agent = instance.ai_agents;
     if (!agent || !agent.is_active || messageType !== "text") {
+      console.log("[Webhook] Agent inactive or non-text message. Agent:", agent?.id, "Active:", agent?.is_active);
       return new Response(JSON.stringify({ action: "no_active_agent" }), { headers: corsHeaders });
     }
 
@@ -293,6 +294,8 @@ serve(async (req) => {
       }
       return new Response(JSON.stringify({ error: "AI Failed" }), { headers: corsHeaders });
     }
+
+    console.log("[Webhook] AI Reply generated:", replyText.substring(0, 50) + "...");
 
     // 6. Send Reply
     const sent = await sendWhatsAppMessage(instance.server_url, instance.instance_token, data.key.remoteJid, replyText);
