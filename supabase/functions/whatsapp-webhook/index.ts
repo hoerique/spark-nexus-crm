@@ -1,8 +1,8 @@
 /**
- * WhatsApp Webhook Handler v9.0 (Ingestion Only)
+ * WhatsApp Webhook Handler v9.1 (Ingestion + Async Code Trigger)
  * 
- * Goal: Receive message, validate, and save to DB.
- * The 'process-new-messages' function will handle the AI logic asynchronously.
+ * Goal: Receive message, validate, save to DB, and TRIGGER Processor manually.
+ * Uses EdgeRuntime.waitUntil for fire-and-forget logic.
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
@@ -54,22 +54,56 @@ serve(async (req) => {
 
     console.log(`Persisting msg from ${remoteJid}`);
 
-    // 3. Save to DB (Trigger will handle the rest)
-    const { error: saveErr } = await supabase.from('whatsapp_messages').insert({
+    // 3. Save to DB
+    const { data: newRow, error: saveErr } = await supabase.from('whatsapp_messages').insert({
       user_id: instance.user_id,
       instance_id: instance.id,
       content: messageText,
       direction: 'incoming',
       remote_jid: remoteJid,
-      status: 'pending' // Important for Trigger to pick up
-    });
+      status: 'pending'
+    }).select().single();
 
     if (saveErr) {
       console.error("DB Save Error:", saveErr);
       return new Response('DB Error', { status: 500 });
     }
 
-    return new Response('Ingested', { status: 200 });
+    // 4. ASYNC TRIGGER (Code-based)
+    // We construct the URL for the PROCESSOR function
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? "";
+    const projectRef = supabaseUrl.match(/https?:\/\/([^.]+)/)?.[1];
+    const processorUrl = projectRef
+      ? `https://${projectRef}.supabase.co/functions/v1/process-new-messages`
+      : `${supabaseUrl}/functions/v1/process-new-messages`;
+
+    console.log(`[Trigger] Calling Processor: ${processorUrl}`);
+
+    // Call Processor (Fire and Forget)
+    const invokeProcessor = fetch(processorUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ record: newRow })
+    })
+      .then(res => res.text().then(t => console.log("[Trigger] Process result:", t)))
+      .catch(e => console.error("[Trigger] Failed:", e));
+
+    // EDGE RUNTIME WAITUNTIL (Critical for Async)
+    // @ts-ignore
+    if (typeof EdgeRuntime !== 'undefined') {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(invokeProcessor);
+    } else {
+      // Fallback for local dev (might block slightly or fail to wait)
+      console.log("Not on EdgeRuntime, strictly waiting...");
+      // In local, we might want to just let it run or await it if we don't care about blocking
+      // But for production, wait until is key.
+    }
+
+    return new Response('Ingested & Triggered', { status: 200 });
 
   } catch (err) {
     console.error('Webhook Error:', err.message)
