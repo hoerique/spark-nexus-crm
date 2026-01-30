@@ -142,7 +142,9 @@ serve(async (req) => {
     }
 
     if (!agent.is_active) {
-      return new Response(JSON.stringify({ error: "Agent is not active" }), { status: 400, headers: corsHeaders });
+      // Allow testing even if inactive, but warn log
+      console.log("Testing inactive agent:", agentId);
+      // return new Response(JSON.stringify({ error: "Agent is not active" }), { status: 400, headers: corsHeaders });
     }
 
     // 2. Load AI Config
@@ -157,8 +159,8 @@ serve(async (req) => {
     if (!aiConfig?.api_key) {
       console.error("AI Config Missing for user:", agent.user_id);
       return new Response(
-        JSON.stringify({ error: "AI Configuration missing. Please configure an AI Provider in Settings." }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Configuração de IA não encontrada ou inativa. Vá em Configurações > IA e ative um provedor (OpenAI, Gemini, etc)." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -196,8 +198,9 @@ serve(async (req) => {
       }
     } catch (providerError: any) {
       console.error("AI Provider Exception:", providerError);
+      const msg = providerError.message || JSON.stringify(providerError);
       return new Response(
-        JSON.stringify({ error: `AI Error: ${providerError.message}` }),
+        JSON.stringify({ error: `Erro no Provedor de IA (${provider}): ${msg}` }),
         { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }

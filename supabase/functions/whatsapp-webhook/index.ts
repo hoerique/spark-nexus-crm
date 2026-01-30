@@ -42,6 +42,21 @@ serve(async (req) => {
         const remoteJid = msg.chatid || msg.key?.remoteJid || (msg.sender_pn ? `${msg.sender_pn}` : null);
         const messageText = msg.text || msg.conversation || msg.extendedTextMessage?.text || body.data?.message?.conversation;
         const isFromMe = msg.fromMe || body.data?.key?.fromMe;
+        const externalId = msg.key?.id || body.data?.key?.id;
+
+        if (externalId) {
+            // 1.1 DEDUPLICAÇÃO (Idempotency)
+            const { data: existingMsg } = await supabase
+                .from('whatsapp_messages')
+                .select('id')
+                .eq('external_id', externalId)
+                .single();
+
+            if (existingMsg) {
+                console.log(`[Ignorado] Mensagem duplicada (ID: ${externalId})`);
+                return new Response('Ignored (Duplicate)', { status: 200 });
+            }
+        }
 
         if (isFromMe || msg.wasSentByApi) {
             return new Response('Ignored (Self)', { status: 200 });
@@ -155,10 +170,9 @@ serve(async (req) => {
             })
         });
 
-        if (!sendRes.ok) console.error("Falha ao enviar UAZAPI:", await sendRes.text());
-        else console.log("Enviado para WhatsApp com sucesso.");
+        const errorText = sendRes.ok ? null : await sendRes.text();
+        if (!sendRes.ok) console.error("Falha ao enviar UAZAPI:", errorText);
 
-        // 7. SALVAR TUDO (Somente após sucesso)
         await supabase.from('whatsapp_messages').insert([
             {
                 user_id: instance.user_id,
@@ -166,13 +180,14 @@ serve(async (req) => {
                 remote_jid: remoteJid,
                 content: messageText,
                 direction: 'incoming',
-                status: 'processed'
+                status: 'processed',
+                external_id: externalId
             },
             {
                 user_id: instance.user_id,
                 instance_id: instance.id,
                 remote_jid: remoteJid,
-                content: replyText,
+                content: sendRes.ok ? replyText : `[ERRO DE ENVIO] ${errorText} || MSG: ${replyText}`,
                 direction: 'outgoing',
                 status: sendRes.ok ? 'sent' : 'failed'
             }
