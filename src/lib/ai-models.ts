@@ -3,7 +3,7 @@ import { Cpu, Brain, Zap, Sparkles } from "lucide-react";
 
 export const AI_PROVIDERS = [
     {
-        id: "openai",
+        id: "chatgpt",
         name: "OpenAI",
         icon: Cpu,
         color: "text-green-400",
