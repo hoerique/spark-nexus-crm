@@ -1,5 +1,5 @@
 /**
- * WhatsApp Webhook Handler v6.0 (Unified with Agent Chat)
+ * WhatsApp Webhook Handler v6.1 (Unified + Typing Indicator)
  * 
  * Flow:
  * 1. Receive Event
@@ -156,7 +156,8 @@ async function sendWhatsAppMessage(serverUrl: string, instanceToken: string, rem
       },
       body: JSON.stringify({
         number: remoteJid.replace("@s.whatsapp.net", ""),
-        text: message
+        text: message,
+        options: { delay: 1200, presence: "composing" }
       }),
     });
 
@@ -173,7 +174,7 @@ async function sendWhatsAppMessage(serverUrl: string, instanceToken: string, rem
 
 serve(async (req) => {
   // STARTUP DEBUG
-  console.log(`[Webhook] v6.0 STARTUP (Unified) - Method: ${req.method} - URL: ${req.url}`);
+  console.log(`[Webhook] v6.1 STARTUP (Unified + Typing) - Method: ${req.method} - URL: ${req.url}`);
 
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
