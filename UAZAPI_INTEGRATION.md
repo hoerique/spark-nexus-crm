@@ -1,123 +1,133 @@
-# Documentação de Integração UAZAPI GO
+# Guia Completo de Integração e Arquitetura WhatsApp
 
-Esta documentação fornece um diagnóstico do estado atual e um guia passo-a-passo para integrar a interface frontend com a API UAZAPI GO.
+Este documento explica como o sistema funciona, onde cada arquivo vive e o passo-a-passo para tudo funcionar.
 
-## 1. Diagnóstico do Sistema
+## 1. Visão Geral da Arquitetura
 
-### Situação Atual
-- **Frontend**: interface desenvolvida com React + Vite + Tailwind CSS imitando o WhatsApp Web.
-- **Backend**: Funções Supabase (`whatsapp-webhook`, `agent-chat`).
-- **Estado**: A interface utiliza um hook simulado (`useChat.ts`) com dados mockados (fake).
+O sistema é dividido em três partes principais. É fundamental entender onde cada uma vive:
 
-### Requisitos Identificados
-1.  O sistema precisa receber mensagens em tempo real (Webhook).
-2.  O sistema precisa enviar mensagens via API da UAZAPI.
-3.  O histórico de mensagens deve ser persistivo (Supabase Database).
+### A. Frontend (Seu CRM - Código React)
+*   **Onde vive?**: Na pasta `src/` do seu projeto (`useChat.ts`, `Conversations.tsx`).
+*   **Função**: Mostrar a tela para o usuário e buscar dados do Banco de Dados. **Não** fala diretamente com o WhatsApp.
+*   **Arquivo Principal**: `src/hooks/useChat.ts`.
+    *   **O que ele é?**: É o "cérebro" da tela de chat.
+    *   **O que ele faz?**:
+        1.  Vai no Supabase e pergunta: "Quais conversas eu tenho?" (Tabela `conversations`).
+        2.  Vai no Supabase e pergunta: "Quais mensagens essa conversa tem?" (Tabela `whatsapp_messages`).
+        3.  Fica "ouvindo" (Realtime) se chegar mensagem nova para atualizar a tela na hora.
+
+### B. Banco de Dados (Supabase)
+*   **Onde vive?**: Na nuvem (Supabase). Você vê as tabelas pelo painel do Supabase.
+*   **Função**: Guardar o histórico.
+*   **Tabelas Principais**:
+    *   `conversations`: Lista de contatos que já falaram com você.
+    *   `whatsapp_messages`: Todas as mensagens trocadas.
+
+### C. Backend (Edge Functions & Webhook)
+*   **Onde vive?**: Na pasta `supabase/functions/`.
+*   **Função**: Fazer o "trabalho sujo" de conexão com o mundo externo (UAZAPI).
+*   **Arquivos**:
+    *   `whatsapp-webhook/index.ts`: **Recebe** mensagens do WhatsApp (via UAZAPI) e salva no Banco.
+    *   `send-whatsapp-message` (A ser criada): **Envia** mensagens para a UAZAPI quando o frontend pede.
 
 ---
 
-## 2. Passo a Passo para Integração
+## 2. Fluxo de Dados (Passo a Passo)
 
-### Passo 1: Configuração do Webhook (Backend)
-Já existe uma função `whatsapp-webhook`. Certifique-se de que ela está salvando as mensagens no banco de dados Supabase.
+### Fluxo 1: Quando seu cliente manda mensagem (Recebimento)
+1.  **Cliente** manda "Oi" no WhatsApp.
+2.  **UAZAPI** recebe e avisa seu sistema (Webhook).
+3.  **`whatsapp-webhook/index.ts`** recebe o aviso.
+    *   Salva a mensagem na tabela `whatsapp_messages`.
+    *   (Recomendado) Atualiza ou cria a linha na tabela `conversations`.
+4.  **Supabase** avisa o Frontend (Realtime).
+5.  **`useChat.ts`** (no navegador) vê o aviso e mostra a mensagem na tela automaticamente.
 
-1.  **Tabela de Mensagens**: Verifique se existe uma tabela `messages` no Supabase com as colunas:
-    -   `id` (uuid/int)
-    -   `chat_id` ou `contact_phone`
-    -   `content` (text)
-    -   `sender_type` (user/agent/contact)
-    -   `media_url` (text, nullable)
-    -   `created_at` (timestamp)
+### Fluxo 2: Quando você responde (Envio)
+1.  **Você** digita "Olá" na tela e clica em Enviar.
+2.  **`useChat.ts`** chama a função `send-whatsapp-message`.
+3.  **`send-whatsapp-message`**:
+    *   Pega o texto.
+    *   Manda para a API da UAZAPI.
+    *   Salva na tabela `whatsapp_messages` como "enviada".
+4.  **UAZAPI** manda a mensagem para o celular do cliente.
 
-2.  **Ajuste na Função Webhook**:
-    -   Ao receber `POST` da UAZAPI, extraia o número e mensagem.
-    -   Insira na tabela `messages`.
+---
 
-### Passo 2: Conectar Frontend ao Supabase (Realtime)
+## 3. Guia de Integração (O que você precisa fazer agora)
 
-Edite o arquivo `src/hooks/useChat.ts` para substituir os dados mockados por observadores do Supabase.
+### Passo 1: Ajustar o Webhook (`whatsapp-webhook/index.ts`)
+Atualmente, seu webhook salva mensagens. Verifique se ele também está **criando/atualizando a tabela `conversations`**.
+*   *Por que?* Se não tiver nada na tabela `conversations`, a lista lateral do chat ficará vazia.
+*   *Como?* No código do webhook, logo após salvar a mensagem, faça um `upsert` na tabela `conversations` com o nome e telefone do contato e a data da última mensagem.
 
-```typescript
-// Exemplo de como alterar o useChat.ts
-import { supabase } from "@/integrations/supabase/client";
+### Passo 2: Criar a Função de Envio (`send-whatsapp-message`)
+Você precisa criar essa função para que o botão "Enviar" funcione.
 
-// ... dentro do hook useChat
+1.  Crie a pasta: `supabase/functions/send-whatsapp-message/`
+2.  Crie o arquivo `index.ts` dentro dela com o código para chamar a UAZAPI (Exemplo no final deste documento).
+3.  Faça o deploy: `supabase functions deploy send-whatsapp-message`.
 
-useEffect(() => {
-  // 1. Carregar contatos (conversas existentes)
-  const fetchContacts = async () => {
-    const { data } = await supabase.from('contacts').select('*');
-    setContacts(data);
-  }
-  fetchContacts();
+### Passo 3: Testar
+1.  Mande uma mensagem do seu celular para o bot.
+2.  Veja se apareceu no Banco de Dados (`whatsapp_messages`).
+3.  Veja se apareceu na tabela `conversations`.
+4.  Veja se apareceu na tela do seu CRM.
 
-  // 2. Ouvir novas mensagens em tempo real
-  const channel = supabase
-    .channel('public:messages')
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-       const newMessage = payload.new;
-       // Atualizar estado de mensagens
-       setMessages(prev => [...prev, adaptMessage(newMessage)]);
-    })
-    .subscribe();
+---
 
-  return () => { supabase.removeChannel(channel) }
-}, []);
-```
-
-### Passo 3: Envio de Mensagens
-
-Para enviar mensagens, você deve chamar a sua Edge Function que se comunica com a UAZAPI, para não expor suas credenciais no frontend.
+## Exemplo: Código da Função de Envio (`send-whatsapp-message`)
 
 ```typescript
-// No useChat.ts, função sendMessage
-const sendMessage = async (content: string) => {
-  // 1. Atualizar UI otimista
-  // ...
-
-  // 2. Chamar Edge Function
-  const { error } = await supabase.functions.invoke('send-whatsapp', {
-    body: { phone: activeContact.phone, message: content }
-  });
-
-  if (error) {
-    console.error("Erro ao enviar", error);
-    // Reverter UI ou mostrar erro
-  }
-};
-```
-
-### Passo 4: Edge Function para Envio (`send-whatsapp`)
-
-Crie uma nova função no Supabase para processar o envio:
-
-```typescript
-// supabase/functions/send-whatsapp/index.ts
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 serve(async (req) => {
-  const { phone, message } = await req.json();
+  // 1. Recebe dados do Frontend (useChat.ts)
+  const { phone, message, instance_id } = await req.json();
   
-  // Chamada para UAZAPI
-  const response = await fetch('https://api.uazapi.com/v1/send-text', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'uazapi-token': 'SEU_TOKEN'
-    },
-    body: JSON.stringify({
-      number: phone,
-      message: message
-    })
+  // 2. Setup Supabase
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL')!,
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+  );
+
+  // 3. Busca Token da Instância
+  const { data: instance } = await supabase
+    .from('whatsapp_instances')
+    .select('*')
+    .eq('id', instance_id) // ou pegue a primeira ativa se não passar ID
+    .single();
+
+  if (!instance) return new Response("Instância não encontrada", { status: 404 });
+
+  // 4. Manda para UAZAPI
+  const uazapiUrl = `${instance.server_url}/send/text`;
+  const res = await fetch(uazapiUrl, {
+      method: 'POST',
+      headers: {
+        'apikey': instance.instance_token,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        number: phone,
+        text: message
+      })
   });
 
-  return new Response(JSON.stringify({ success: true }), { headers: { 'Content-Type': 'application/json' } });
+  // 5. Salva no Histórico como "Enviada"
+  if (res.ok) {
+      await supabase.from('whatsapp_messages').insert({
+          remote_jid: `${phone}@s.whatsapp.net`,
+          content: message,
+          direction: 'outgoing',
+          status: 'sent',
+          instance_id: instance.id,
+          message_type: 'text'
+      });
+      return new Response(JSON.stringify({ success: true }), { headers: { 'Content-Type': 'application/json' } });
+  } else {
+      return new Response(JSON.stringify({ error: "Falha na UAZAPI" }), { status: 500 });
+  }
 });
 ```
-
----
-
-## 3. Próximos Passos Imediatos
-1.  Criar as tabelas no Supabase (se não existirem).
-2.  Implementar a conexão Realtime no `useChat.ts`.
-3.  Testar o fluxo completo (Envio Front -> Edge Function -> UAZAPI -> Celular -> UAZAPI -> Webhook -> Supabase -> Front Realtime).

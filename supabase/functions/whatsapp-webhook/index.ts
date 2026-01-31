@@ -6,7 +6,7 @@
  * This script handles EVERYTHING in one go:
  * 1. Receive Hook
  * 2. DB Lookup
- * 3. AI Generation
+ * 3. AI Generationx
  * 4. Reply to UAZAPI
  * 5. Save History
  * 

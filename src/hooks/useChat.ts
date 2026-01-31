@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 export interface Contact {
     id: string;
@@ -17,25 +18,10 @@ export interface Message {
     content: string;
     sender: "me" | "them";
     timestamp: string;
-    status: "sent" | "delivered" | "read";
+    status: "sent" | "delivered" | "read" | "failed";
     type: "text" | "image" | "document" | "audio";
-    fileUrl?: string; // For media
+    fileUrl?: string;
 }
-
-// Mock Data
-const MOCK_CONTACTS: Contact[] = [
-    { id: "1", name: "João Silva", lastMessage: "Olá, gostaria de saber mais sobre...", time: "10:30", unreadCount: 2, status: "online", phone: "5511999999999" },
-    { id: "2", name: "Maria Santos", lastMessage: "Obrigada!", time: "Ontem", unreadCount: 0, status: "offline", phone: "5511988888888" },
-    { id: "3", name: "Suporte Técnico", lastMessage: "Seu ticket foi resolvido.", time: "Terça", unreadCount: 1, status: "typing", phone: "5511977777777" },
-];
-
-const MOCK_MESSAGES: Message[] = [
-    { id: "1", content: "Olá! Como posso ajudar?", sender: "me", timestamp: "10:00", status: "read", type: "text" },
-    { id: "2", content: "Gostaria de saber sobre os planos.", sender: "them", timestamp: "10:05", status: "read", type: "text" },
-    { id: "3", content: "Claro! Temos planos a partir de R$97.", sender: "me", timestamp: "10:06", status: "read", type: "text" },
-    { id: "4", content: "Segue nosso catálogo:", sender: "me", timestamp: "10:06", status: "read", type: "text" },
-    // Image mock would go here
-];
 
 export function useChat() {
     const [contacts, setContacts] = useState<Contact[]>([]);
@@ -43,68 +29,167 @@ export function useChat() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Load Contacts (Simulated API)
+    // Load Contacts (Conversations)
     useEffect(() => {
-        const loadContacts = async () => {
-            // Simulate API delay
-            setTimeout(() => {
-                setContacts(MOCK_CONTACTS);
+        const fetchContacts = async () => {
+            try {
+                const { data, error } = await supabase
+                    .from('conversations')
+                    .select('*')
+                    .eq('channel', 'whatsapp')
+                    .order('last_message_at', { ascending: false });
+
+                if (error) throw error;
+
+                // Map database conversations to frontend Contact interface
+                const formattedContacts: Contact[] = (data || []).map((conv: any) => ({
+                    id: conv.id,
+                    name: conv.contact_name || conv.contact_phone || "Desconhecido",
+                    phone: conv.contact_phone,
+                    lastMessage: "Clique para ver as mensagens", // Ideal: Add last_message content to conversations table
+                    time: conv.last_message_at ? new Date(conv.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "",
+                    unreadCount: 0, // Pending implementation
+                    status: "offline", // Pending presence implementation
+                    avatar: undefined
+                }));
+
+                setContacts(formattedContacts);
+            } catch (error) {
+                console.error("Error loading contacts:", error);
+                toast.error("Erro ao carregar conversas.");
+            } finally {
                 setIsLoading(false);
-            }, 500);
+            }
         };
-        loadContacts();
+
+        fetchContacts();
+
+        // Subscribe to new conversations
+        const channel = supabase
+            .channel('public:conversations')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+                fetchContacts();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, []);
 
-    // Load Messages when chat is selected (Simulated)
+    // Load Messages when contact is selected
     useEffect(() => {
-        if (!activeContact) return;
+        if (!activeContact) {
+            setMessages([]);
+            return;
+        }
 
-        // In a real app, fetch messages for this contact
-        // For now, just reset/load mock messages varying slightly by contact
-        setMessages(activeContact.id === "1" ? MOCK_MESSAGES : []);
+        const fetchMessages = async () => {
+            // Remove symbols from phone to match typical database format if needed
+            // But assuming 'remote_jid' might be like '5511999999999@s.whatsapp.net' and contact.phone is '5511999999999'
+            const cleanPhone = activeContact.phone.replace(/\D/g, '');
+
+            try {
+                const { data, error } = await supabase
+                    .from('whatsapp_messages')
+                    .select('*')
+                    // Assuming remote_jid contains the phone number
+                    .ilike('remote_jid', `%${cleanPhone}%`)
+                    .order('created_at', { ascending: true });
+
+                if (error) throw error;
+
+                const formattedMessages: Message[] = (data || []).map((msg: any) => ({
+                    id: msg.id,
+                    content: msg.content || (msg.media_url ? "Mídia" : ""),
+                    sender: msg.direction === 'outgoing' ? 'me' : 'them',
+                    timestamp: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    status: msg.status as any,
+                    type: msg.media_url ? (msg.media_mimetype?.includes('image') ? 'image' : 'document') : 'text',
+                    fileUrl: msg.media_url
+                }));
+
+                setMessages(formattedMessages);
+            } catch (error) {
+                console.error("Error loading messages:", error);
+            }
+        };
+
+        fetchMessages();
+
+        // Realtime subscription for messages
+        const channel = supabase
+            .channel(`chat:${activeContact.id}`)
+            .on('postgres_changes', {
+                event: 'INSERT',
+                schema: 'public',
+                table: 'whatsapp_messages'
+            }, (payload) => {
+                const msg = payload.new as any;
+                // Check if message belongs to current chat
+                if (msg.remote_jid.includes(activeContact.phone.replace(/\D/g, ''))) {
+                    setMessages(prev => [...prev, {
+                        id: msg.id,
+                        content: msg.content || (msg.media_url ? "Mídia" : ""),
+                        sender: msg.direction === 'outgoing' ? 'me' : 'them',
+                        timestamp: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        status: msg.status as any,
+                        type: msg.media_url ? (msg.media_mimetype?.includes('image') ? 'image' : 'document') : 'text',
+                        fileUrl: msg.media_url
+                    }]);
+                }
+            })
+            .on('postgres_changes', {
+                event: 'UPDATE',
+                schema: 'public',
+                table: 'whatsapp_messages'
+            }, (payload) => {
+                // Handle status updates (sent -> delivered -> read)
+                const updatedMsg = payload.new as any;
+                setMessages(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, status: updatedMsg.status } : m));
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(channel);
+        };
     }, [activeContact]);
 
-    const sendMessage = (content: string, type: Message["type"] = "text", file?: File) => {
-        if (!content && !file) return;
+    const sendMessage = async (content: string, type: Message["type"] = "text", file?: File) => {
+        if (!activeContact) return;
 
-        const newMessage: Message = {
-            id: Date.now().toString(),
+        // Optimistic UI Update
+        const tempId = Date.now().toString();
+        const optimisticMessage: Message = {
+            id: tempId,
             content,
             sender: "me",
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             status: "sent",
-            type,
-            fileUrl: file ? URL.createObjectURL(file) : undefined
+            type
         };
 
-        setMessages((prev) => [...prev, newMessage]);
+        setMessages(prev => [...prev, optimisticMessage]);
 
-        // Simulate "Delivered" -> "Read" status updates
-        setTimeout(() => {
-            setMessages((prev) =>
-                prev.map(m => m.id === newMessage.id ? { ...m, status: "delivered" } : m)
-            );
-        }, 1000);
+        try {
+            // Call Edge Function to send message via UAZAPI
+            // Note: You must implement 'send-whatsapp-message' edge function on Supabase
+            const { data, error } = await supabase.functions.invoke('send-whatsapp-message', {
+                body: {
+                    phone: activeContact.phone,
+                    message: content,
+                    // You might need to pass the instance_id if you have multiple
+                    // instance_id: "..." 
+                }
+            });
 
-        setTimeout(() => {
-            setMessages((prev) =>
-                prev.map(m => m.id === newMessage.id ? { ...m, status: "read" } : m)
-            );
-        }, 2500);
+            if (error) throw error;
 
-        // Simulate auto-reply for demo
-        setTimeout(() => {
-            const reply: Message = {
-                id: (Date.now() + 1).toString(),
-                content: "Esta é uma resposta automática simulada.",
-                sender: "them",
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                status: "read", // Incoming messages don't have this status usually, but for type consistency
-                type: "text"
-            };
-            setMessages((prev) => [...prev, reply]);
-            toast.info("Nova mensagem recebida!");
-        }, 4000);
+        } catch (error) {
+            console.error("Error sending message:", error);
+            toast.error("Erro ao enviar mensagem.");
+            setMessages(prev => prev.map(m => m.id === tempId ? { ...m, status: "failed" } : m));
+        }
     };
 
     return {
