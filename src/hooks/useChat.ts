@@ -61,9 +61,9 @@ export function useChat() {
                     if (!contactsMap.has(msg.remote_jid)) {
                         contactsMap.set(msg.remote_jid, {
                             id: msg.remote_jid, // Use remote_jid as ID
-                            // Try to get name from msg.contact_name (new column), fallback to phone
-                            name: msg.contact_name || msg.remote_jid.replace('@s.whatsapp.net', '') || "Desconhecido",
-                            phone: msg.remote_jid.replace('@s.whatsapp.net', ''),
+                            // Try to get name from msg.contact_name (new column), fallback to formatted phone
+                            name: msg.contact_name || `+${msg.remote_jid.replace(/\D/g, '')}`,
+                            phone: `+${msg.remote_jid.replace(/\D/g, '')}`,
                             lastMessage: msg.content || (msg.media_url ? "Mídia" : ""),
                             time: msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "",
                             unreadCount: 0,
@@ -120,7 +120,7 @@ export function useChat() {
 
                 const formattedMessages: Message[] = (data || []).map((msg: any) => ({
                     id: msg.id,
-                    content: msg.content || (msg.media_url ? "Mídia" : ""),
+                    content: msg.content || (msg.media_url ? "Mídia" : "Mensagem sem texto"),
                     sender: msg.direction === 'outgoing' ? 'me' : 'them',
                     timestamp: new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                     status: msg.status as any,
