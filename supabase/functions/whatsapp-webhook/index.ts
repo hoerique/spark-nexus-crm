@@ -111,6 +111,22 @@ serve(async (req) => {
         if (saveError) console.error("Erro ao salvar/upsert mensagem de entrada:", saveError);
         console.log(`[Processando] De: ${remoteJid} | Texto: "${messageText}"`);
 
+        // 4.1. ATUALIZAR TABELA DE CONVERSAS (CRUCIAL PARA O CRM)
+        const senderName = msg.pushName || body.data?.pushName || remoteJid.split('@')[0];
+
+        const { error: convError } = await supabase.from('conversations').upsert({
+            user_id: instance.user_id,
+            contact_phone: cleanRemoteJid, // Usando o número limpo que será usado também no useChat
+            contact_name: senderName,
+            channel: 'whatsapp',
+            last_message_at: new Date().toISOString(),
+            status: 'active',
+            // Opcional: Adicionar colunas extras se sua tabela tiver (ex: last_message_content)
+        }, { onConflict: 'contact_phone, user_id, channel', ignoreDuplicates: false });
+
+        if (convError) console.error("Erro ao atualizar conversa:", convError);
+        console.log(`[Conversa Sync] Contato: ${senderName} | Tel: ${cleanRemoteJid}`);
+
         // 5. CONFIG IA
         const { data: configs, error: configError } = await supabase
             .from('ai_provider_configs')

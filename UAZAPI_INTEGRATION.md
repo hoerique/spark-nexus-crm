@@ -39,7 +39,7 @@ O sistema é dividido em três partes principais. É fundamental entender onde c
 2.  **UAZAPI** recebe e avisa seu sistema (Webhook).
 3.  **`whatsapp-webhook/index.ts`** recebe o aviso.
     *   Salva a mensagem na tabela `whatsapp_messages`.
-    *   (Recomendado) Atualiza ou cria a linha na tabela `conversations`.
+    *   **ATUALIZAÇÃO IMPORTANTE**: Agora ele atualiza automaticamente a tabela `conversations` para que o contato apareça na sua tela.
 4.  **Supabase** avisa o Frontend (Realtime).
 5.  **`useChat.ts`** (no navegador) vê o aviso e mostra a mensagem na tela automaticamente.
 
@@ -57,15 +57,15 @@ O sistema é dividido em três partes principais. É fundamental entender onde c
 ## 3. Guia de Integração (O que você precisa fazer agora)
 
 ### Passo 1: Ajustar o Webhook (`whatsapp-webhook/index.ts`)
-Atualmente, seu webhook salva mensagens. Verifique se ele também está **criando/atualizando a tabela `conversations`**.
-*   *Por que?* Se não tiver nada na tabela `conversations`, a lista lateral do chat ficará vazia.
-*   *Como?* No código do webhook, logo após salvar a mensagem, faça um `upsert` na tabela `conversations` com o nome e telefone do contato e a data da última mensagem.
+**[FEITO]** Já atualizei o código do seu webhook para salvar a conversa na tabela `conversations`.
+Certifique-se apenas de fazer o **deploy** da função atualizada:
+`supabase functions deploy whatsapp-webhook`
 
 ### Passo 2: Criar a Função de Envio (`send-whatsapp-message`)
 Você precisa criar essa função para que o botão "Enviar" funcione.
 
 1.  Crie a pasta: `supabase/functions/send-whatsapp-message/`
-2.  Crie o arquivo `index.ts` dentro dela com o código para chamar a UAZAPI (Exemplo no final deste documento).
+2.  Crie o arquivo `index.ts` dentro dela com o código para chamar a UAZAPI (Exemplo abaixo).
 3.  Faça o deploy: `supabase functions deploy send-whatsapp-message`.
 
 ### Passo 3: Testar
