@@ -33,7 +33,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
                     </div>
                 )}
 
-                <p className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                <p className="text-sm text-gray-900 dark:text-gray-100 whitespace-pre-wrap leading-relaxed">
                     {message.content}
                 </p>
 
