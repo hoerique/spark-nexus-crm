@@ -42,7 +42,7 @@ export function useChat() {
                 const { data, error } = await supabase
                     .from('conversations')
                     .select('*')
-                    .eq('channel', 'whatsapp')
+                    //.eq('channel', 'whatsapp') // REMOVIDO TEMPORARIAMENTE PARA DEBUG
                     .order('last_message_at', { ascending: false });
 
                 if (error) {
