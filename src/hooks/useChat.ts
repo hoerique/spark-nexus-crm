@@ -113,7 +113,7 @@ export function useChat() {
                 const { data, error } = await supabase
                     .from('whatsapp_messages')
                     .select('*')
-                    .ilike('remote_jid', `%${cleanPhone}%`)
+                    .eq('remote_jid', activeContact.id)
                     .order('created_at', { ascending: true });
 
                 if (error) throw error;

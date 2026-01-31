@@ -98,10 +98,11 @@ serve(async (req) => {
         // 4. SALVAR MENSAGEM DE ENTRADA (IMEDIATAMENTE)
         // Se já existe (dedup bypass), isso pode dar erro de UNIQUE constraint se external_id for unique.
         // Vamos usar upsert ou ignorar erro.
-        // 4.1. Definir Nome (Mover para cima para usar no insert da mensagem também)
-        const senderName = msg.pushName || body.data?.pushName || remoteJid.split('@')[0];
-
         // 4. SALVAR MENSAGEM DE ENTRADA (IMEDIATAMENTE)
+        // 4.1. Definir Nome e Telefone (Extração centralizada)
+        const senderName = msg.pushName || body.data?.pushName || remoteJid.split('@')[0];
+        const cleanRemoteJid = remoteJid.replace("@s.whatsapp.net", "").replace(/\D/g, "");
+
         // Se já existe (dedup bypass), isso pode dar erro de UNIQUE constraint se external_id for unique.
         // Vamos usar upsert ou ignorar erro.
         const { error: saveError } = await supabase.from('whatsapp_messages').upsert({
@@ -113,22 +114,37 @@ serve(async (req) => {
             status: 'processed',
             external_id: externalId,
             contact_name: senderName // Salvando nome na mensagem
-        }, { onConflict: 'external_id', ignoreDuplicates: false }); // Upsert atualiza timestamp/status
+        }, { onConflict: 'external_id', ignoreDuplicates: false });
 
-        if (saveError) console.error("Erro ao salvar/upsert mensagem de entrada:", saveError);
+        if (saveError) {
+            console.error("Erro ao salvar/upsert mensagem de entrada:", saveError);
+            // Tentar insert simples se upsert falhar por constraint (fallback)
+            if (saveError.code === '42P10') {
+                console.log("Tentando fallback para INSERT simples (sem dedup por external_id)...");
+                await supabase.from('whatsapp_messages').insert({
+                    user_id: instance.user_id,
+                    instance_id: instance.id,
+                    remote_jid: remoteJid,
+                    content: messageText,
+                    direction: 'incoming',
+                    status: 'processed',
+                    external_id: externalId,
+                    contact_name: senderName
+                });
+            }
+        }
         console.log(`[Processando] De: ${remoteJid} | Texto: "${messageText}"`);
 
         // 4.1. ATUALIZAR TABELA DE CONVERSAS (CRUCIAL PARA O CRM)
-        const senderName = msg.pushName || body.data?.pushName || remoteJid.split('@')[0];
+        // senderName já definido acima
 
         const { error: convError } = await supabase.from('conversations').upsert({
             user_id: instance.user_id,
-            contact_phone: cleanRemoteJid, // Usando o número limpo que será usado também no useChat
+            contact_phone: cleanRemoteJid, // Usando o número limpo
             contact_name: senderName,
             channel: 'whatsapp',
             last_message_at: new Date().toISOString(),
             status: 'active',
-            // Opcional: Adicionar colunas extras se sua tabela tiver (ex: last_message_content)
         }, { onConflict: 'contact_phone, user_id, channel', ignoreDuplicates: false });
 
         if (convError) console.error("Erro ao atualizar conversa:", convError);
@@ -241,7 +257,8 @@ serve(async (req) => {
 
         // 8. ENVIAR WHATSAPP (LOGICA HÍBRIDA)
         const waInstanceName = body.instanceName || body.instance || instance.name || "master";
-        const cleanRemoteJid = remoteJid.replace("@s.whatsapp.net", "").replace(/\D/g, "");
+        // cleanRemoteJid já definido acima
+
         const apiHeaders = {
             'Content-Type': 'application/json',
             'apikey': instance.instance_token,
