@@ -33,23 +33,29 @@ export function useChat() {
     useEffect(() => {
         const fetchContacts = async () => {
             try {
+                console.log("Fetching contacts...");
                 const { data, error } = await supabase
                     .from('conversations')
                     .select('*')
                     .eq('channel', 'whatsapp')
                     .order('last_message_at', { ascending: false });
 
-                if (error) throw error;
+                if (error) {
+                    console.error("Supabase Error fetching contacts:", error);
+                    throw error;
+                }
+
+                console.log("Raw Contacts Data:", data);
 
                 // Map database conversations to frontend Contact interface
                 const formattedContacts: Contact[] = (data || []).map((conv: any) => ({
                     id: conv.id,
                     name: conv.contact_name || conv.contact_phone || "Desconhecido",
                     phone: conv.contact_phone,
-                    lastMessage: "Clique para ver as mensagens", // Ideal: Add last_message content to conversations table
+                    lastMessage: "Clique para ver as mensagens",
                     time: conv.last_message_at ? new Date(conv.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "",
-                    unreadCount: 0, // Pending implementation
-                    status: "offline", // Pending presence implementation
+                    unreadCount: 0,
+                    status: "offline",
                     avatar: undefined
                 }));
 
