@@ -34,6 +34,11 @@ export function useChat() {
         const fetchContacts = async () => {
             try {
                 console.log("Fetching contacts...");
+
+                // Debug Auth
+                const { data: { user } } = await supabase.auth.getUser();
+                console.log("Current Frontend User ID:", user?.id);
+
                 const { data, error } = await supabase
                     .from('conversations')
                     .select('*')
