@@ -65,8 +65,8 @@ export function useChat() {
                             name: msg.contact_name || msg.remote_jid.replace('@s.whatsapp.net', '') || "Desconhecido",
                             phone: msg.remote_jid.replace('@s.whatsapp.net', ''),
                             lastMessage: msg.content || (msg.media_url ? "Mídia" : ""),
-                            time: msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ("",
-                                unreadCount: 0,
+                            time: msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "",
+                            unreadCount: 0,
                             status: "offline",
                             avatar: undefined
                         });
