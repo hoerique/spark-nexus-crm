@@ -98,6 +98,12 @@ serve(async (req) => {
         // 4. SALVAR MENSAGEM DE ENTRADA (IMEDIATAMENTE)
         // Se já existe (dedup bypass), isso pode dar erro de UNIQUE constraint se external_id for unique.
         // Vamos usar upsert ou ignorar erro.
+        // 4.1. Definir Nome (Mover para cima para usar no insert da mensagem também)
+        const senderName = msg.pushName || body.data?.pushName || remoteJid.split('@')[0];
+
+        // 4. SALVAR MENSAGEM DE ENTRADA (IMEDIATAMENTE)
+        // Se já existe (dedup bypass), isso pode dar erro de UNIQUE constraint se external_id for unique.
+        // Vamos usar upsert ou ignorar erro.
         const { error: saveError } = await supabase.from('whatsapp_messages').upsert({
             user_id: instance.user_id,
             instance_id: instance.id,
@@ -105,7 +111,8 @@ serve(async (req) => {
             content: messageText,
             direction: 'incoming',
             status: 'processed',
-            external_id: externalId
+            external_id: externalId,
+            contact_name: senderName // Salvando nome na mensagem
         }, { onConflict: 'external_id', ignoreDuplicates: false }); // Upsert atualiza timestamp/status
 
         if (saveError) console.error("Erro ao salvar/upsert mensagem de entrada:", saveError);

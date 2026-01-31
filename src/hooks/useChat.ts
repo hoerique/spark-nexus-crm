@@ -29,42 +29,53 @@ export function useChat() {
     const [messages, setMessages] = useState<Message[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
-    // Load Contacts (Conversations)
+    // Load Contacts (Derived from Messages)
     useEffect(() => {
         const fetchContacts = async () => {
             try {
-                console.log("Fetching contacts...");
+                console.log("Fetching contacts from MESSAGES table...");
 
                 // Debug Auth
                 const { data: { user } } = await supabase.auth.getUser();
-                console.log("Current Frontend User ID:", user?.id);
+                console.log("Current Consuming User ID:", user?.id);
 
+                // Fetch recent messages to build contact list
+                // We fetch 50 most recent messages regardless of sender
                 const { data, error } = await supabase
-                    .from('conversations')
+                    .from('whatsapp_messages')
                     .select('*')
-                    //.eq('channel', 'whatsapp') // REMOVIDO TEMPORARIAMENTE PARA DEBUG
-                    .order('last_message_at', { ascending: false });
+                    .order('created_at', { ascending: false })
+                    .limit(50);
 
                 if (error) {
-                    console.error("Supabase Error fetching contacts:", error);
+                    console.error("Supabase Error fetching messages for contacts:", error);
                     throw error;
                 }
 
-                console.log("Raw Contacts Data:", data);
+                console.log("Raw Messages for Contacts:", data);
 
-                // Map database conversations to frontend Contact interface
-                const formattedContacts: Contact[] = (data || []).map((conv: any) => ({
-                    id: conv.id,
-                    name: conv.contact_name || conv.contact_phone || "Desconhecido",
-                    phone: conv.contact_phone,
-                    lastMessage: "Clique para ver as mensagens",
-                    time: conv.last_message_at ? new Date(conv.last_message_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "",
-                    unreadCount: 0,
-                    status: "offline",
-                    avatar: undefined
-                }));
+                // Deduplicate by remote_jid to create "Conversations" list
+                const contactsMap = new Map<string, Contact>();
 
+                data?.forEach((msg: any) => {
+                    if (!contactsMap.has(msg.remote_jid)) {
+                        contactsMap.set(msg.remote_jid, {
+                            id: msg.remote_jid, // Use remote_jid as ID
+                            // Try to get name from msg.contact_name (new column), fallback to phone
+                            name: msg.contact_name || msg.remote_jid.replace('@s.whatsapp.net', '') || "Desconhecido",
+                            phone: msg.remote_jid.replace('@s.whatsapp.net', ''),
+                            lastMessage: msg.content || (msg.media_url ? "Mídia" : ""),
+                            time: msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ("",
+                                unreadCount: 0,
+                            status: "offline",
+                            avatar: undefined
+                        });
+                    }
+                });
+
+                const formattedContacts = Array.from(contactsMap.values());
                 setContacts(formattedContacts);
+
             } catch (error) {
                 console.error("Error loading contacts:", error);
                 toast.error("Erro ao carregar conversas.");
@@ -75,10 +86,10 @@ export function useChat() {
 
         fetchContacts();
 
-        // Subscribe to new conversations
+        // Subscribe to new messages (to update contact list order/last message)
         const channel = supabase
-            .channel('public:conversations')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+            .channel('public:whatsapp_messages_contacts')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'whatsapp_messages' }, () => {
                 fetchContacts();
             })
             .subscribe();
@@ -96,15 +107,12 @@ export function useChat() {
         }
 
         const fetchMessages = async () => {
-            // Remove symbols from phone to match typical database format if needed
-            // But assuming 'remote_jid' might be like '5511999999999@s.whatsapp.net' and contact.phone is '5511999999999'
             const cleanPhone = activeContact.phone.replace(/\D/g, '');
 
             try {
                 const { data, error } = await supabase
                     .from('whatsapp_messages')
                     .select('*')
-                    // Assuming remote_jid contains the phone number
                     .ilike('remote_jid', `%${cleanPhone}%`)
                     .order('created_at', { ascending: true });
 
@@ -128,7 +136,7 @@ export function useChat() {
 
         fetchMessages();
 
-        // Realtime subscription for messages
+        // Realtime subscription for messages in chat
         const channel = supabase
             .channel(`chat:${activeContact.id}`)
             .on('postgres_changes', {
@@ -137,7 +145,6 @@ export function useChat() {
                 table: 'whatsapp_messages'
             }, (payload) => {
                 const msg = payload.new as any;
-                // Check if message belongs to current chat
                 if (msg.remote_jid.includes(activeContact.phone.replace(/\D/g, ''))) {
                     setMessages(prev => [...prev, {
                         id: msg.id,
@@ -155,7 +162,6 @@ export function useChat() {
                 schema: 'public',
                 table: 'whatsapp_messages'
             }, (payload) => {
-                // Handle status updates (sent -> delivered -> read)
                 const updatedMsg = payload.new as any;
                 setMessages(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, status: updatedMsg.status } : m));
             })
@@ -183,14 +189,10 @@ export function useChat() {
         setMessages(prev => [...prev, optimisticMessage]);
 
         try {
-            // Call Edge Function to send message via UAZAPI
-            // Note: You must implement 'send-whatsapp-message' edge function on Supabase
             const { data, error } = await supabase.functions.invoke('send-whatsapp-message', {
                 body: {
                     phone: activeContact.phone,
                     message: content,
-                    // You might need to pass the instance_id if you have multiple
-                    // instance_id: "..." 
                 }
             });
 
